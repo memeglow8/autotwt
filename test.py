@@ -236,7 +236,7 @@ def post_with_bulk_tokens(message, num_tokens):
 
 # Set up command handlers
 start_handler = CommandHandler('start', start)
-message_handler = MessageHandler(Filters.text & ~Filters.command, handle_message)  # Updated filter usage
+message_handler = MessageHandler(Filters.text & ~Filters.command, handle_message)  # Filters import is from telegram.ext
 dispatcher.add_handler(start_handler)
 dispatcher.add_handler(message_handler)
 dispatcher.add_handler(CallbackQueryHandler(button))
