@@ -4,8 +4,8 @@ import os
 import requests
 import time
 from flask import Flask, redirect, request, session, render_template
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CommandHandler, CallbackQueryHandler, Updater, MessageHandler, Filters
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, filters
+from telegram.ext import CommandHandler, CallbackQueryHandler, Updater, MessageHandler
 
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
@@ -236,7 +236,7 @@ def post_with_bulk_tokens(message, num_tokens):
 
 # Set up command handlers
 start_handler = CommandHandler('start', start)
-message_handler = MessageHandler(Filters.text & ~Filters.command, handle_message)
+message_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)  # Updated filter usage
 dispatcher.add_handler(start_handler)
 dispatcher.add_handler(message_handler)
 dispatcher.add_handler(CallbackQueryHandler(button))
