@@ -10,7 +10,7 @@ from telegram.ext import CommandHandler, CallbackQueryHandler, Updater, MessageH
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-CALLBACK_URL = ''  # Update with your callback URL
+CALLBACK_URL = 'https://gifter-7vz7.onrender.com/'  # Update with your callback URL
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
