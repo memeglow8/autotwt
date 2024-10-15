@@ -1,0 +1,5 @@
+requests
+flask
+requests_oauthlib
+python-telegram-bot
+tweepy
