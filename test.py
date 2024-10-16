@@ -8,6 +8,7 @@ from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, CallbackQueryHandler, Updater, MessageHandler, Filters
 import logging
 import telegram
+import sys
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -335,6 +336,7 @@ def start_polling_with_check(updater):
         logger.info("Bot started successfully.")
     except telegram.error.Conflict:
         logger.warning("Bot already running elsewhere. Terminating current instance.")
+        sys.exit(1)  # Exit the application if the bot is already running
 
 # Run the bots
 if __name__ == '__main__':
