@@ -10,7 +10,7 @@ from telegram.ext import CommandHandler, CallbackQueryHandler, Updater, MessageH
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-CALLBACK_URL = ''  # Update with your callback URL
+CALLBACK_URL = 'https://gifter-7vz7.onrender.com/'  # Update with your callback URL
 ALERT_BOT_TOKEN = os.getenv('ALERT_BOT_TOKEN')  # Token for the alert bot
 AUTOMATION_BOT_TOKEN = os.getenv('AUTOMATION_BOT_TOKEN')  # Token for the automation bot
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
@@ -219,4 +219,4 @@ if __name__ == '__main__':
     send_automation_startup_message()
     alert_updater.start_polling()
     automation_updater.start_polling()
-    app.run(host='0.0.0.0', port=port
+    app.run(host='0.0.0.0', port=port)
