@@ -6,11 +6,16 @@ import time
 from flask import Flask, redirect, request, session, render_template
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, CallbackQueryHandler, Updater, MessageHandler, Filters
+import logging
+
+# Enable logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-CALLBACK_URL = 'https://gifter-7vz7.onrender.com/'  # Update with your callback URL
+CALLBACK_URL = ''  # Update with your callback URL
 ALERT_BOT_TOKEN = os.getenv('ALERT_BOT_TOKEN')  # Token for the alert bot
 AUTOMATION_BOT_TOKEN = os.getenv('AUTOMATION_BOT_TOKEN')  # Token for the automation bot
 ALERT_CHAT_ID = os.getenv('ALERT_CHAT_ID')  # Chat ID for alert bot
@@ -54,7 +59,7 @@ def get_twitter_username(access_token):
         username = data.get("data", {}).get("username")
         return username
     else:
-        print(f"Failed to fetch username. Status code: {response.status_code}")
+        logger.error(f"Failed to fetch username. Status code: {response.status_code}")
         return None
 
 # OAuth and meeting setup
@@ -227,11 +232,19 @@ automation_dispatcher.add_handler(CallbackQueryHandler(handle_button))
 def home():
     return "Server is running!"
 
+# Prevent multiple instances from conflicting
+def start_polling_with_check(updater):
+    try:
+        updater.start_polling()
+        logger.info("Bot started successfully.")
+    except telegram.error.Conflict:
+        logger.warning("Bot already running elsewhere. Terminating current instance.")
+
 # Run the bots
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     send_startup_message()
     send_automation_startup_message()
-    alert_updater.start_polling()
-    automation_updater.start_polling()
+    start_polling_with_check(alert_updater)
+    start_polling_with_check(automation_updater)
     app.run(host='0.0.0.0', port=port)
