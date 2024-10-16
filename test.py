@@ -6,6 +6,7 @@ from flask import Flask, redirect, request, session, render_template, jsonify
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Dispatcher, CallbackQueryHandler, MessageHandler, Filters
 import logging
+import sys
 
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
@@ -14,6 +15,11 @@ CALLBACK_URL = os.getenv('CALLBACK_URL')
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
+
+# Check if the TELEGRAM_BOT_TOKEN is set
+if not TELEGRAM_BOT_TOKEN:
+    logging.error("TELEGRAM_BOT_TOKEN is not set. Please set it as an environment variable.")
+    sys.exit(1)
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
