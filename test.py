@@ -11,8 +11,8 @@ import logging
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 CALLBACK_URL = os.getenv('CALLBACK_URL')
-TELEGRAM_BOT_TOKEN = os.getenv('ALERT_BOT_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('ALERT_CHAT_ID')
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 
 app = Flask(__name__)
@@ -21,6 +21,14 @@ app.secret_key = os.urandom(24)
 # Initialize Telegram Bot and Dispatcher
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dispatcher = Dispatcher(bot, None, workers=4)
+
+# Function to generate code verifier and challenge
+def generate_code_verifier_and_challenge():
+    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode('utf-8')
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode()).digest()
+    ).rstrip(b'=').decode('utf-8')
+    return code_verifier, code_challenge
 
 # Function to set up the webhook
 def set_webhook():
