@@ -3,4 +3,3 @@ requests
 requests_oauthlib
 python-telegram-bot==13.15
 tweepy
-sqlite3  # This line is optional as sqlite3 is included in the Python standard library
