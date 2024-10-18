@@ -107,7 +107,7 @@ def refresh_token_in_db(refresh_token, username):
         send_message_via_telegram(f"❌ Failed to refresh token for @{username}: {response.json().get('error_description', 'Unknown error')}")
         return None, None
 
-# Bulk refresh all tokens in the database (NEW FUNCTION)
+# Bulk refresh all tokens in the database
 def handle_refresh_bulk():
     tokens = get_all_tokens()
     if tokens:
@@ -130,10 +130,6 @@ def send_message_via_telegram(message):
     }
     requests.post(url, json=data)
 
-# Placeholder for waiting for user's reply (you need to implement this)
-def wait_for_user_input():
-    pass
-
 # Confirm action based on pending command
 def confirm_action():
     global pending_command
@@ -150,8 +146,12 @@ def confirm_action():
             handle_post_single(command_text)
         elif command_to_run == 'post_bulk':
             handle_post_bulk(command_text)
+        
+        # Clear pending command after execution to avoid repeats
         send_message_via_telegram(f"✅ {command_to_run} successfully executed.")
         pending_command.clear()
+    else:
+        send_message_via_telegram("❌ No pending command to confirm.")
 
 # Handle posting a tweet with a single token
 def handle_post_single(tweet_text):
