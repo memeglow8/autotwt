@@ -107,6 +107,19 @@ def refresh_token_in_db(refresh_token, username):
         send_message_via_telegram(f"❌ Failed to refresh token for @{username}: {response.json().get('error_description', 'Unknown error')}")
         return None, None
 
+# Bulk refresh all tokens in the database (NEW FUNCTION)
+def handle_refresh_bulk():
+    tokens = get_all_tokens()
+    if tokens:
+        for access_token, refresh_token, username in tokens:
+            if refresh_token:
+                refresh_token_in_db(refresh_token, username)
+            else:
+                send_message_via_telegram(f"❌ No refresh token available for @{username}.")
+        send_message_via_telegram(f"✅ Bulk token refresh completed.")
+    else:
+        send_message_via_telegram("❌ No tokens found to refresh.")
+
 # Send message via Telegram
 def send_message_via_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -117,7 +130,7 @@ def send_message_via_telegram(message):
     }
     requests.post(url, json=data)
 
-# Placeholder for waiting for user's reply (to be implemented for real input handling)
+# Placeholder for waiting for user's reply (you need to implement this)
 def wait_for_user_input():
     pass
 
