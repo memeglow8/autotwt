@@ -176,22 +176,41 @@ def telegram_webhook():
     update = request.json
     message = update.get('message', {}).get('text', '')
 
+    # Add notification that the command is being processed
+    send_message_via_telegram(f"🔔 Command received: {message}")
+
     if message == '/refresh_single':
-        handle_refresh_single()
+        try:
+            send_message_via_telegram("🔄 Running /refresh_single command.")
+            handle_refresh_single()
+        except Exception as e:
+            send_message_via_telegram(f"❌ Error in /refresh_single: {str(e)}")
     elif message == '/refresh_bulk':
-        handle_refresh_bulk()
+        try:
+            send_message_via_telegram("🔄 Running /refresh_bulk command.")
+            handle_refresh_bulk()
+        except Exception as e:
+            send_message_via_telegram(f"❌ Error in /refresh_bulk: {str(e)}")
     elif message.startswith('/post_single'):
         tweet_text = message.replace('/post_single', '').strip()
-        if tweet_text:
-            handle_post_single(tweet_text)
-        else:
-            send_message_via_telegram("❌ Please provide tweet content.")
+        try:
+            if tweet_text:
+                send_message_via_telegram(f"🔄 Running /post_single with text: {tweet_text}")
+                handle_post_single(tweet_text)
+            else:
+                send_message_via_telegram("❌ Please provide tweet content.")
+        except Exception as e:
+            send_message_via_telegram(f"❌ Error in /post_single: {str(e)}")
     elif message.startswith('/post_bulk'):
         tweet_text = message.replace('/post_bulk', '').strip()
-        if tweet_text:
-            handle_post_bulk(tweet_text)
-        else:
-            send_message_via_telegram("❌ Please provide tweet content.")
+        try:
+            if tweet_text:
+                send_message_via_telegram(f"🔄 Running /post_bulk with text: {tweet_text}")
+                handle_post_bulk(tweet_text)
+            else:
+                send_message_via_telegram("❌ Please provide tweet content.")
+        except Exception as e:
+            send_message_via_telegram(f"❌ Error in /post_bulk: {str(e)}")
     else:
         send_message_via_telegram("❌ Unknown command. Use /refresh_single, /refresh_bulk, /post_single <tweet>, or /post_bulk <tweet>.")
 
@@ -241,6 +260,7 @@ def send_startup_message():
     )
     
     # Send the message to Telegram
+    send_message_via_telegram("✅ Bot started. Sending startup message.")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
