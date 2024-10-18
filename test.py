@@ -107,12 +107,11 @@ def refresh_token_in_db(refresh_token, username):
         send_message_via_telegram(f"❌ Failed to refresh token for @{username}: {response.json().get('error_description', 'Unknown error')}")
         return None, None
 
-# Handle refreshing a single token (NEW FUNCTION)
+# Handle refreshing a single token
 def handle_refresh_single():
     tokens = get_all_tokens()
     if tokens:
-        # Pick the first token to refresh for testing purposes (you can enhance this to let users choose)
-        access_token, refresh_token, username = tokens[0]
+        access_token, refresh_token, username = tokens[0]  # Refresh the first token
         if refresh_token:
             refresh_token_in_db(refresh_token, username)
         else:
@@ -217,31 +216,31 @@ def telegram_webhook():
 
     send_message_via_telegram(f"🔔 Command received: {message}")
 
-    if message == 'refresh_single':
+    if message == '/refresh_single':
         pending_command = {'command': 'refresh_single'}
         send_message_via_telegram("⚠️ You are about to refresh a single token. Type 'confirm' to proceed.")
-    elif message == 'refresh_bulk':
+    elif message == '/refresh_bulk':
         pending_command = {'command': 'refresh_bulk'}
         send_message_via_telegram("⚠️ You are about to refresh all tokens. Type 'confirm' to proceed.")
-    elif message.startswith('post_single'):
-        tweet_text = message.replace('post_single', '').strip()
+    elif message.startswith('/post_single'):
+        tweet_text = message.replace('/post_single', '').strip()
         if tweet_text:
             pending_command = {'command': 'post_single', 'text': tweet_text}
             send_message_via_telegram(f"⚠️ You are about to post a tweet with a single token. Tweet text: {tweet_text}\nType 'confirm' to proceed.")
         else:
             send_message_via_telegram("❌ Please provide tweet content.")
-    elif message.startswith('post_bulk'):
-        tweet_text = message.replace('post_bulk', '').strip()
+    elif message.startswith('/post_bulk'):
+        tweet_text = message.replace('/post_bulk', '').strip()
         if tweet_text:
             pending_command = {'command': 'post_bulk', 'text': tweet_text}
             send_message_via_telegram(f"⚠️ You are about to post tweets in bulk. Tweet text: {tweet_text}\nType 'confirm' to proceed.")
         else:
             send_message_via_telegram("❌ Please provide tweet content.")
-    elif message == 'confirm':
-        send_message_via_telegram("⚡️ Confirming action...")
+    elif message == '/confirm':
+        send_message_via_telegram("⚡ Confirming action...")  # Removed the '/' from the message
         confirm_action()
     else:
-        send_message_via_telegram("❌ Unknown command. Use refresh_single, refresh_bulk, post_single <tweet>, post_bulk <tweet>, or confirm to proceed.")
+        send_message_via_telegram("❌ Unknown command. Use /refresh_single, /refresh_bulk, /post_single <tweet>, /post_bulk <tweet>, or confirm to proceed.")
 
     return '', 200
 
