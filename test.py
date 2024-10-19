@@ -64,7 +64,7 @@ def get_total_tokens():
     return total
 
 # Refresh a token using refresh_token and notify via Telegram (ADDED)
-def refresh_token(refresh_token, username):
+def refresh_token_in_db(refresh_token, username):
     token_url = 'https://api.twitter.com/2/oauth2/token'
     client_credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
     auth_header = base64.b64encode(client_credentials.encode()).decode('utf-8')
@@ -116,8 +116,8 @@ def send_message_via_telegram(message):
 def handle_refresh_single():
     tokens = get_all_tokens()
     if tokens:
-        access_token, refresh_token, username = tokens[0]  # Refresh first token (or choose randomly)
-        refresh_token(refresh_token, username)
+        access_token, token_refresh, username = tokens[0]  # Use the first token (or choose randomly)
+        refresh_token_in_db(token_refresh, username)
     else:
         send_message_via_telegram("❌ No tokens found to refresh.")
 
@@ -126,7 +126,7 @@ def handle_refresh_bulk():
     tokens = get_all_tokens()
     if tokens:
         for access_token, refresh_token, username in tokens:
-            refresh_token(refresh_token, username)
+            refresh_token_in_db(refresh_token, username)
         send_message_via_telegram(f"✅ Bulk token refresh complete. {len(tokens)} tokens refreshed.")
     else:
         send_message_via_telegram("❌ No tokens found to refresh.")
@@ -345,6 +345,7 @@ def home():
             error_description = token_response.get('error_description', 'Unknown error')
             error_code = token_response.get('error', 'No error code')
             return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
