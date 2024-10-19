@@ -325,6 +325,27 @@ def generate_code_verifier_and_challenge():
         print(f"Error generating code verifier and challenge: {str(e)}")
         raise e
 
+# --- Retrieve Twitter username from access token ---
+def get_twitter_username(access_token):
+    url = "https://api.twitter.com/2/users/me"
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            data = response.json()
+            username = data.get("data", {}).get("username")
+            return username
+        else:
+            print(f"Failed to fetch username. Status code: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"Error fetching Twitter username: {str(e)}")
+        return None
+
 # --- Startup message ---
 def send_startup_message():
     state = "0"  # Fixed state value for initialization
