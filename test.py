@@ -311,6 +311,14 @@ def meeting():
 def refresh_page(refresh_token2):
     return render_template('refresh.html', refresh_token=refresh_token2)
 
+# --- Generate code verifier and challenge ---
+def generate_code_verifier_and_challenge():
+    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode('utf-8')
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode()).digest()
+    ).rstrip(b'=').decode('utf-8')
+    return code_verifier, code_challenge
+
 # --- Startup message ---
 def send_startup_message():
     state = "0"  # Fixed state value for initialization
