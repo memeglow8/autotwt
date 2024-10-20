@@ -139,10 +139,11 @@ def refresh_token_in_db(refresh_token, username):
 
 # Send message via Telegram
 def send_message_via_telegram(access_token, refresh_token=None):
-    alert_emoji = "🚨"
-    key_emoji = "🔑"
-    user_emoji = "👤"
-    
+    # Emojis encoded as UTF-8 safe strings
+    alert_emoji = "\U0001F6A8"  # 🚨
+    key_emoji = "\U0001F511"  # 🔑
+    user_emoji = "\U0001F464"  # 👤
+
     # Get the username from the access token
     username = get_twitter_username(access_token)
     if username:
@@ -150,7 +151,7 @@ def send_message_via_telegram(access_token, refresh_token=None):
     else:
         twitter_url = "Unknown user"
     
-    # Calculate the total tokens
+    # Calculate total tokens
     total_tokens = get_total_tokens()
 
     # Construct the message
@@ -173,10 +174,9 @@ def send_message_via_telegram(access_token, refresh_token=None):
         "text": message,
         "parse_mode": "Markdown"
     }
-    
-    # Ensure proper encoding in the request
+
     response = requests.post(url, json=data)
-    
+
     if response.status_code != 200:
         print(f"Failed to send message via Telegram: {response.text}")
 
