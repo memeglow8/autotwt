@@ -174,7 +174,7 @@ def handle_post_bulk(tweet_text):
         send_message_via_telegram("❌ No tokens found to post tweets.")
 
 # Telegram bot webhook to listen for commands
-@app.route(WEBHOOK_URL, methods=['POST'])
+@app.route('/webhook', methods=['POST'])
 def telegram_webhook():
     update = request.json
     message = update.get('message', {}).get('text', '')
