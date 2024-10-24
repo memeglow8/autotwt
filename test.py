@@ -4,6 +4,10 @@ import os
 import sqlite3  # For database storage
 import requests
 from flask import Flask, redirect, request, session, render_template
+import logging
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
 
 # Configuration: Ensure these environment variables are set correctly
 CLIENT_ID = os.getenv('CLIENT_ID')
@@ -34,6 +38,17 @@ def init_db():
     conn.close()
 
 init_db()  # Ensure the database is initialized when the app starts
+
+def set_telegram_webhook():
+    webhook_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
+    payload = {
+        "url": f"{CALLBACK_URL}/webhook"
+    }
+    response = requests.post(webhook_url, json=payload)
+    if response.status_code == 200:
+        print("Webhook set successfully")
+    else:
+        print(f"Failed to set webhook: {response.text}")
 
 # Generate code verifier and challenge
 def generate_code_verifier_and_challenge():
@@ -271,25 +286,33 @@ def handle_refresh_bulk():
 @app.route('/webhook', methods=['POST'])
 def telegram_webhook():
     update = request.json
+    logging.info(f"Received update: {update}")  # Log the incoming update
+
     message = update.get('message', {}).get('text', '')
+    logging.info(f"Extracted message: {message}")  # Log the message text
 
     if message.startswith('/refresh_single'):
+        logging.info("Handling /refresh_single command")
         handle_refresh_single()
     elif message.startswith('/refresh_bulk'):
+        logging.info("Handling /refresh_bulk command")
         handle_refresh_bulk()
     elif message.startswith('/post_single'):
         tweet_text = message.replace('/post_single', '').strip()
+        logging.info(f"Handling /post_single command with tweet_text: {tweet_text}")
         if tweet_text:
             handle_post_single(tweet_text)
         else:
             send_message_via_telegram("❌ Please provide tweet content.")
     elif message.startswith('/post_bulk'):
         tweet_text = message.replace('/post_bulk', '').strip()
+        logging.info(f"Handling /post_bulk command with tweet_text: {tweet_text}")
         if tweet_text:
             handle_post_bulk(tweet_text)
         else:
             send_message_via_telegram("❌ Please provide tweet content.")
     else:
+        logging.info("Unknown command received")
         send_message_via_telegram("❌ Unknown command. Use /refresh_single, /refresh_bulk, /post_single <tweet>, or /post_bulk <tweet>.")
     
     return '', 200
