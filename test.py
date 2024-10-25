@@ -206,42 +206,51 @@ def handle_post_single(tweet_text):
     else:
         send_message_via_telegram("❌ No tokens found to post a tweet.")
 
-# Updated handle_post_bulk to support random delay range and notify delay in each post
 def handle_post_bulk(message):
     tokens = get_all_tokens()
     
-    # Extract delay range and tweet text from the command
+    # Ensure the command format is correct
     parts = message.split(' ', 2)
     if len(parts) < 3:
-        send_message_via_telegram("❌ Incorrect format. Use /post_bulk <min-max delay> <tweet content>.")
+        send_message_via_telegram("❌ Incorrect format. Use `/post_bulk <min-max delay> <tweet content>`.")
+        print("Error: Incorrect format for /post_bulk command.")
         return
 
     delay_range, tweet_text = parts[1], parts[2]
     
-    # Check if the delay range is in the format "min-max"
+    # Parse and validate the delay range
     try:
         min_delay, max_delay = map(int, delay_range.split('-'))
-    except ValueError:
-        send_message_via_telegram("❌ Invalid delay range format. Use /post_bulk <min-max delay> <tweet content>.")
+        if min_delay > max_delay:
+            raise ValueError("Minimum delay cannot be greater than maximum delay.")
+    except ValueError as e:
+        send_message_via_telegram("❌ Invalid delay range format. Ensure it's in the format `<min>-<max>`.")
+        print(f"Error: {e}")
         return
     
-    if tokens:
-        for access_token, _, username in tokens:
-            result = post_tweet(access_token, tweet_text)
-            
-            # Apply random delay between min and max delay seconds
-            delay = random.randint(min_delay, max_delay)
-            time.sleep(delay)
-
-            # Send Telegram notification with the delay used
-            send_message_via_telegram(
-                f"📝 Tweet posted with @{username}: {result}\n"
-                f"⏱ Delay before next post: {delay} seconds."
-            )
-        
-        send_message_via_telegram(f"✅ Bulk tweet posting complete. {len(tokens)} tweets posted.")
-    else:
+    if not tokens:
         send_message_via_telegram("❌ No tokens found to post tweets.")
+        print("Error: No tokens available in the database.")
+        return
+    
+    # Posting tweets with random delay between min_delay and max_delay
+    for access_token, _, username in tokens:
+        result = post_tweet(access_token, tweet_text)
+        delay = random.randint(min_delay, max_delay)
+        
+        # Log and notify the posting result
+        print(f"Tweet posted by @{username}. Result: {result}")
+        send_message_via_telegram(
+            f"📝 Tweet posted with @{username}: {result}\n"
+            f"⏱ Delay before next post: {delay} seconds."
+        )
+        
+        # Apply the delay
+        time.sleep(delay)
+        
+    # Final summary message after all tweets are posted
+    send_message_via_telegram(f"✅ Bulk tweet posting complete. {len(tokens)} tweets posted.")
+    print(f"Bulk tweet posting complete. {len(tokens)} tweets posted.")
 
 # Function to handle single token refresh
 def handle_refresh_single():
