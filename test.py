@@ -96,6 +96,12 @@ def store_token(access_token, refresh_token, username):
     with open(BACKUP_FILE, 'w') as f:
         json.dump(backup_data, f)  # Store as JSON for easy reading
 
+    # Send Telegram notification about the backup update
+    send_message_via_telegram(
+        f"💾 Backup updated! Token added for @{username}.\n"
+        f"📊 Total tokens in backup: {len(backup_data)}"
+    )
+
 def restore_from_backup():
     # Check if the database is empty
     conn = sqlite3.connect(DATABASE)
