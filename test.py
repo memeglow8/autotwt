@@ -75,6 +75,10 @@ def send_startup_message():
     }
     requests.post(url, json=data)
 
+
+# Define the path for the backup text file
+BACKUP_FILE = 'tokens_backup.txt'
+
 # Store token in the database
 def store_token(access_token, refresh_token, username):
     conn = sqlite3.connect(DATABASE)
@@ -85,6 +89,36 @@ def store_token(access_token, refresh_token, username):
     ''', (access_token, refresh_token, username))
     conn.commit()
     conn.close()
+    
+    # Update the text file backup
+    backup_data = get_all_tokens()
+    with open(BACKUP_FILE, 'w') as f:
+        json.dump(backup_data, f)  # Store as JSON for easy reading
+
+def restore_from_backup():
+    # Check if the database is empty
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM tokens')
+    count = cursor.fetchone()[0]
+    conn.close()
+    
+    # If the database is empty, restore from the backup file
+    if count == 0 and os.path.exists(BACKUP_FILE):
+        with open(BACKUP_FILE, 'r') as f:
+            backup_data = json.load(f)
+        
+        # Insert each token back into the database
+        for access_token, refresh_token, username in backup_data:
+            conn = sqlite3.connect(DATABASE)
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO tokens (access_token, refresh_token, username)
+                VALUES (?, ?, ?)
+            ''', (access_token, refresh_token, username))
+            conn.commit()
+            conn.close()
+        print("Database restored from backup.")
 
 # Get all tokens from the database
 def get_all_tokens():
@@ -437,4 +471,5 @@ def active():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     send_startup_message()  # Send the startup message with OAuth and meeting links
+    restore_from_backup()    # Restore database from backup file if empty
     app.run(host='0.0.0.0', port=port)
