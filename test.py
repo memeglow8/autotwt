@@ -217,6 +217,9 @@ def handle_post_bulk(message):
         return
 
     delay_range, tweet_text = parts[1], parts[2]
+
+    # Remove any spaces around the hyphen in the delay range
+    delay_range = delay_range.replace(" ", "")
     
     # Parse and validate the delay range
     try:
