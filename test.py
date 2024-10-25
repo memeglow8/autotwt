@@ -3,6 +3,8 @@ import hashlib
 import os
 import sqlite3
 import requests
+import time
+import random
 from flask import Flask, redirect, request, session, render_template, url_for
 
 # Configuration: Ensure these environment variables are set correctly
@@ -204,13 +206,39 @@ def handle_post_single(tweet_text):
     else:
         send_message_via_telegram("❌ No tokens found to post a tweet.")
 
-# Handle bulk posting tweets with all tokens
-def handle_post_bulk(tweet_text):
+# Updated handle_post_bulk to support random delay range and notify delay in each post
+def handle_post_bulk(message):
     tokens = get_all_tokens()
+    
+    # Extract delay range and tweet text from the command
+    parts = message.split(' ', 2)
+    if len(parts) < 3:
+        send_message_via_telegram("❌ Incorrect format. Use /post_bulk <min-max delay> <tweet content>.")
+        return
+
+    delay_range, tweet_text = parts[1], parts[2]
+    
+    # Check if the delay range is in the format "min-max"
+    try:
+        min_delay, max_delay = map(int, delay_range.split('-'))
+    except ValueError:
+        send_message_via_telegram("❌ Invalid delay range format. Use /post_bulk <min-max delay> <tweet content>.")
+        return
+    
     if tokens:
         for access_token, _, username in tokens:
             result = post_tweet(access_token, tweet_text)
-            send_message_via_telegram(f"📝 Tweet posted with @{username}: {result}")
+            
+            # Apply random delay between min and max delay seconds
+            delay = random.randint(min_delay, max_delay)
+            time.sleep(delay)
+
+            # Send Telegram notification with the delay used
+            send_message_via_telegram(
+                f"📝 Tweet posted with @{username}: {result}\n"
+                f"⏱ Delay before next post: {delay} seconds."
+            )
+        
         send_message_via_telegram(f"✅ Bulk tweet posting complete. {len(tokens)} tweets posted.")
     else:
         send_message_via_telegram("❌ No tokens found to post tweets.")
