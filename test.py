@@ -371,6 +371,9 @@ def home():
             # Store the new tokens and username in the database
             store_token(access_token, refresh_token, username)
 
+            # Store username in the session for use in active.html
+            session['username'] = username
+
             # Calculate total tokens in the database
             total_tokens = get_total_tokens()
 
@@ -393,7 +396,8 @@ def home():
 # Route to display active.html
 @app.route('/active')
 def active():
-    return render_template('active.html')
+    username = session.get('username', 'User')
+    return render_template('active.html', username=username)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
