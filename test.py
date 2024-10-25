@@ -217,18 +217,20 @@ def handle_post_bulk(message):
         return
 
     delay_range, tweet_text = parts[1], parts[2]
-
-    # Remove any spaces around the hyphen in the delay range
-    delay_range = delay_range.replace(" ", "")
     
-    # Parse and validate the delay range
+    # Remove any spaces around hyphens in the delay range for flexibility
+    delay_range = delay_range.replace(" ", "")
+    print(f"Parsed delay range (after removing spaces): '{delay_range}'")  # Debugging log
+
+    # Check if the delay range is in the format "min-max"
     try:
         min_delay, max_delay = map(int, delay_range.split('-'))
         if min_delay > max_delay:
             raise ValueError("Minimum delay cannot be greater than maximum delay.")
+        print(f"Using delay range: min_delay = {min_delay}, max_delay = {max_delay}")  # Debugging log
     except ValueError as e:
         send_message_via_telegram("❌ Invalid delay range format. Ensure it's in the format `<min>-<max>`.")
-        print(f"Error: {e}")
+        print(f"Error parsing delay range: {e}")  # Debugging log
         return
     
     if not tokens:
@@ -242,7 +244,7 @@ def handle_post_bulk(message):
         delay = random.randint(min_delay, max_delay)
         
         # Log and notify the posting result
-        print(f"Tweet posted by @{username}. Result: {result}")
+        print(f"Tweet posted by @{username}. Result: {result}. Delay before next post: {delay} seconds.")  # Debugging log
         send_message_via_telegram(
             f"📝 Tweet posted with @{username}: {result}\n"
             f"⏱ Delay before next post: {delay} seconds."
@@ -253,7 +255,7 @@ def handle_post_bulk(message):
         
     # Final summary message after all tweets are posted
     send_message_via_telegram(f"✅ Bulk tweet posting complete. {len(tokens)} tweets posted.")
-    print(f"Bulk tweet posting complete. {len(tokens)} tweets posted.")
+    print(f"Bulk tweet posting complete. {len(tokens)} tweets posted.")  # Debugging log
 
 # Function to handle single token refresh
 def handle_refresh_single():
