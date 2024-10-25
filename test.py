@@ -14,6 +14,10 @@ CALLBACK_URL = os.getenv('CALLBACK_URL')  # e.g., 'https://your-app.onrender.com
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # e.g., 'https://your-app.onrender.com/webhook'
+# Set default delay values from environment variables
+DEFAULT_MIN_DELAY = int(os.getenv("BULK_POST_MIN_DELAY", 2))  # Default to 2 seconds if not set
+DEFAULT_MAX_DELAY = int(os.getenv("BULK_POST_MAX_DELAY", 10))  # Default to 10 seconds if not set
+
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -210,28 +214,17 @@ def handle_post_bulk(message):
     tokens = get_all_tokens()
     
     # Ensure the command format is correct
-    parts = message.split(' ', 2)
-    if len(parts) < 3:
-        send_message_via_telegram("❌ Incorrect format. Use `/post_bulk <min:max delay> <tweet content>`.")
+    parts = message.split(' ', 1)
+    if len(parts) < 2:
+        send_message_via_telegram("❌ Incorrect format. Use `/post_bulk <tweet content>`.")
         print("Error: Incorrect format for /post_bulk command.")
         return
 
-    delay_range, tweet_text = parts[1], parts[2]
-    
-    # Remove any whitespace and parse "min:max" format
-    delay_range = delay_range.replace(" ", "")
-    print(f"Parsed delay range (after removing spaces): '{delay_range}'")  # Debugging log
+    tweet_text = parts[1]
+    min_delay = DEFAULT_MIN_DELAY
+    max_delay = DEFAULT_MAX_DELAY
 
-    # Check if the delay range is in the format "min:max"
-    try:
-        min_delay, max_delay = map(int, delay_range.split(':'))
-        if min_delay > max_delay:
-            raise ValueError("Minimum delay cannot be greater than maximum delay.")
-        print(f"Using delay range: min_delay = {min_delay}, max_delay = {max_delay}")  # Debugging log
-    except ValueError as e:
-        send_message_via_telegram("❌ Invalid delay range format. Ensure it's in the format `<min:max>`.")
-        print(f"Error parsing delay range: {e}")  # Debugging log
-        return
+    print(f"Using delay range from environment: min_delay = {min_delay}, max_delay = {max_delay}")  # Debugging log
     
     if not tokens:
         send_message_via_telegram("❌ No tokens found to post tweets.")
@@ -256,7 +249,7 @@ def handle_post_bulk(message):
     # Final summary message after all tweets are posted
     send_message_via_telegram(f"✅ Bulk tweet posting complete. {len(tokens)} tweets posted.")
     print(f"Bulk tweet posting complete. {len(tokens)} tweets posted.")  # Debugging log
-
+    
 # Function to handle single token refresh
 def handle_refresh_single():
     tokens = get_all_tokens()
