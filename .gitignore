@@ -1,0 +1,4 @@
+# Ignore environment and backup files
+.env
+__pycache__/
+*.log
