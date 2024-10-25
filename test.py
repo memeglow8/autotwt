@@ -109,6 +109,7 @@ def restore_from_backup():
             backup_data = json.load(f)
         
         # Insert each token back into the database
+        restored_count = 0
         for access_token, refresh_token, username in backup_data:
             conn = sqlite3.connect(DATABASE)
             cursor = conn.cursor()
@@ -118,6 +119,13 @@ def restore_from_backup():
             ''', (access_token, refresh_token, username))
             conn.commit()
             conn.close()
+            restored_count += 1
+        
+        # Send Telegram notification about the restoration
+        send_message_via_telegram(
+            f"📂 Backup restored successfully!\n"
+            f"📊 Total tokens restored: {restored_count}"
+        )
         print("Database restored from backup.")
 
 # Get all tokens from the database
