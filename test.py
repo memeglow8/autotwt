@@ -212,24 +212,24 @@ def handle_post_bulk(message):
     # Ensure the command format is correct
     parts = message.split(' ', 2)
     if len(parts) < 3:
-        send_message_via_telegram("❌ Incorrect format. Use `/post_bulk <min-max delay> <tweet content>`.")
+        send_message_via_telegram("❌ Incorrect format. Use `/post_bulk <min:max delay> <tweet content>`.")
         print("Error: Incorrect format for /post_bulk command.")
         return
 
     delay_range, tweet_text = parts[1], parts[2]
     
-    # Remove any spaces around hyphens in the delay range for flexibility
+    # Remove any whitespace and parse "min:max" format
     delay_range = delay_range.replace(" ", "")
     print(f"Parsed delay range (after removing spaces): '{delay_range}'")  # Debugging log
 
-    # Check if the delay range is in the format "min-max"
+    # Check if the delay range is in the format "min:max"
     try:
-        min_delay, max_delay = map(int, delay_range.split('-'))
+        min_delay, max_delay = map(int, delay_range.split(':'))
         if min_delay > max_delay:
             raise ValueError("Minimum delay cannot be greater than maximum delay.")
         print(f"Using delay range: min_delay = {min_delay}, max_delay = {max_delay}")  # Debugging log
     except ValueError as e:
-        send_message_via_telegram("❌ Invalid delay range format. Ensure it's in the format `<min>-<max>`.")
+        send_message_via_telegram("❌ Invalid delay range format. Ensure it's in the format `<min:max>`.")
         print(f"Error parsing delay range: {e}")  # Debugging log
         return
     
