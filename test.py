@@ -25,6 +25,7 @@ app.secret_key = os.urandom(24)
 
 # Initialize SQLite database
 DATABASE = 'tokens.db'
+BACKUP_FILE = 'tokens_backup.txt'
 
 def init_db():
     conn = sqlite3.connect(DATABASE)
@@ -75,10 +76,6 @@ def send_startup_message():
         "parse_mode": "Markdown"
     }
     requests.post(url, json=data)
-
-
-# Define the path for the backup text file
-BACKUP_FILE = 'tokens_backup.txt'
 
 # Store token in the database
 def store_token(access_token, refresh_token, username):
