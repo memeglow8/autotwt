@@ -77,17 +77,9 @@ def send_startup_message():
     }
     requests.post(url, json=data)
 
-# Store token in the database
-import os
-import json
-import sqlite3
-
-DATABASE = 'tokens.db'
-BACKUP_FILE = 'tokens_backup.txt'
-
-# Function to store token in the database and back up to text file
+# Store token in the database and back up to a text file
 def store_token(access_token, refresh_token, username):
-    # Store in database
+    print("Storing token in the database...")
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
     cursor.execute('''
@@ -96,45 +88,47 @@ def store_token(access_token, refresh_token, username):
     ''', (access_token, refresh_token, username))
     conn.commit()
     conn.close()
-    
-    # Fetch all tokens from database for backup
+
+    # Fetch and backup all tokens
     backup_data = get_all_tokens()
-    
-    # Write backup data to text file
     try:
+        formatted_backup_data = [{'access_token': a, 'refresh_token': r, 'username': u} for a, r, u in backup_data]
         with open(BACKUP_FILE, 'w') as f:
-            json.dump(backup_data, f)
+            json.dump(formatted_backup_data, f, indent=4)
         print(f"Backup created/updated in {BACKUP_FILE}. Total tokens: {len(backup_data)}")
     except IOError as e:
         print(f"Error writing to backup file: {e}")
 
-    # Optional: Send a Telegram notification for successful backup creation
+    # Notify Telegram
     send_message_via_telegram(
-        f"💾 Backup updated! Token added for @{username}.\n"
-        f"📊 Total tokens in backup: {len(backup_data)}"
+        f"💾 Backup updated! Token added for @{username}.\n📊 Total tokens in backup: {len(backup_data)}"
     )
 
 def restore_from_backup():
-    # Check if the database is empty
+    print("Restoring from backup if database is empty...")
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
     cursor.execute('SELECT COUNT(*) FROM tokens')
     count = cursor.fetchone()[0]
     conn.close()
-    
-    # Only restore if the database is empty
+
     if count == 0:
         if os.path.exists(BACKUP_FILE):
             with open(BACKUP_FILE, 'r') as f:
                 try:
                     backup_data = json.load(f)
-                except json.JSONDecodeError:
-                    print("Error: Backup file is corrupted or empty.")
+                    if not isinstance(backup_data, list):
+                        raise ValueError("Invalid format in backup file.")
+                except (json.JSONDecodeError, ValueError) as e:
+                    print(f"Error reading backup file: {e}")
                     return
 
-            # Insert each token back into the database
             restored_count = 0
-            for access_token, refresh_token, username in backup_data:
+            for token_data in backup_data:
+                access_token = token_data['access_token']
+                refresh_token = token_data.get('refresh_token', None)
+                username = token_data['username']
+
                 conn = sqlite3.connect(DATABASE)
                 cursor = conn.cursor()
                 cursor.execute('''
@@ -145,17 +139,11 @@ def restore_from_backup():
                 conn.close()
                 restored_count += 1
 
-            # Send Telegram notification about the restoration
             send_message_via_telegram(
-                f"📂 Backup restored successfully!\n"
-                f"📊 Total tokens restored: {restored_count}"
+                f"📂 Backup restored successfully!\n📊 Total tokens restored: {restored_count}"
             )
             print(f"Database restored from backup. Total tokens restored: {restored_count}")
         else:
-            send_message_via_telegram(
-                f"📂 Backup restored failed!\n"
-                f"📊 Total tokens restored: 0"
-            )
             print("No backup file found. Skipping restoration.")
 
 # Get all tokens from the database
@@ -508,7 +496,6 @@ def active():
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    send_startup_message()  # Send the startup message with OAuth and meeting links
-    restore_from_backup()    # Restore database from backup file if empty
+    send_startup_message()
+    restore_from_backup()
     app.run(host='0.0.0.0', port=port)
-
