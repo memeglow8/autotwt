@@ -6,6 +6,7 @@ import requests
 import time
 import json
 import random
+import string
 from flask import Flask, redirect, request, session, render_template, url_for
 from psycopg2.extras import RealDictCursor
 
@@ -285,6 +286,11 @@ def handle_post_single(tweet_text):
     else:
         send_message_via_telegram("❌ No tokens found to post a tweet.")
 
+# Helper function to generate 10 random alphanumeric characters
+def generate_random_string(length=10):
+    characters = string.ascii_letters + string.digits  # Alphanumeric characters only
+    return ''.join(random.choice(characters) for _ in range(length))
+
 def handle_post_bulk(message):
     tokens = get_all_tokens()
     
@@ -295,7 +301,8 @@ def handle_post_bulk(message):
         print("Error: Incorrect format for /post_bulk command.")
         return
 
-    tweet_text = parts[1]
+    # Base tweet text from user input
+    base_tweet_text = parts[1]
     min_delay = DEFAULT_MIN_DELAY
     max_delay = DEFAULT_MAX_DELAY
 
@@ -308,6 +315,11 @@ def handle_post_bulk(message):
     
     # Posting tweets with random delay between min_delay and max_delay
     for access_token, _, username in tokens:
+        # Generate a 10-character random alphanumeric suffix
+        random_suffix = generate_random_string(10)
+        tweet_text = f"{base_tweet_text} {random_suffix}"
+
+        # Post the tweet
         result = post_tweet(access_token, tweet_text)
         delay = random.randint(min_delay, max_delay)
         
@@ -324,6 +336,7 @@ def handle_post_bulk(message):
     # Final summary message after all tweets are posted
     send_message_via_telegram(f"✅ Bulk tweet posting complete. {len(tokens)} tweets posted.")
     print(f"Bulk tweet posting complete. {len(tokens)} tweets posted.")  # Debugging log
+
     
 # Function to handle single token refresh
 def handle_refresh_single():
