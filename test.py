@@ -54,7 +54,7 @@ def store_token(access_token, refresh_token, username):
         )
     conn.commit()
     conn.close()
-    send_message_via_telegram(f"💾 Token added for @{username}. Total tokens in database: {get_total_tokens()}")
+    send_message_via_telegram(f"💾 Token added for @{username}. \n\n Total tokens in database: {get_total_tokens()}")
 
 # Get all tokens from the database
 def get_all_tokens():
