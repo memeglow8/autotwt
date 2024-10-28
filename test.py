@@ -54,7 +54,11 @@ def store_token(access_token, refresh_token, username):
         )
     conn.commit()
     conn.close()
-    send_message_via_telegram(f"💾 Token added for @{username}. \n\n Total tokens in database: {get_total_tokens()}")
+    
+    # Log the tokens stored for debugging
+    print(f"Stored token for {username} - Access Token: {access_token}, Refresh Token: {refresh_token}")
+    send_message_via_telegram(f"💾 Token added for @{username}. Total tokens in database: {get_total_tokens()}")
+
 
 # Get all tokens from the database
 def get_all_tokens():
@@ -76,6 +80,8 @@ def get_total_tokens():
 
 # Refresh a token in the database
 def refresh_token_in_db(refresh_token, username):
+    print(f"Attempting to refresh token for {username} using stored refresh token: {refresh_token}")  # Debugging
+    
     token_url = 'https://api.twitter.com/2/oauth2/token'
     client_credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
     auth_header = base64.b64encode(client_credentials.encode()).decode('utf-8')
@@ -94,10 +100,14 @@ def refresh_token_in_db(refresh_token, username):
     response = requests.post(token_url, headers=headers, data=data)
     token_response = response.json()
 
+    # Log the response for debugging
+    print(f"Response from Twitter API for token refresh: {token_response}")
+    
     if response.status_code == 200:
         new_access_token = token_response.get('access_token')
         new_refresh_token = token_response.get('refresh_token')
         
+        # Ensure the tokens are updated in the database
         conn = get_db_connection()
         with conn.cursor() as cursor:
             cursor.execute(
@@ -107,11 +117,14 @@ def refresh_token_in_db(refresh_token, username):
         conn.commit()
         conn.close()
 
+        print(f"Successfully refreshed token for {username}")
         send_message_via_telegram(f"🔑 Token refreshed for @{username}. New Access Token: {new_access_token}")
         return new_access_token, new_refresh_token
     else:
-        send_message_via_telegram(f"❌ Failed to refresh token for @{username}: {response.json().get('error_description', 'Unknown error')}")
+        error_description = token_response.get('error_description', 'Unknown error')
+        send_message_via_telegram(f"❌ Failed to refresh token for @{username}: {error_description}")
         return None, None
+
 
 # Send message via Telegram
 def send_message_via_telegram(message):
