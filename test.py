@@ -486,9 +486,12 @@ def home():
             # Fetch username and profile URL
             username, profile_url = get_twitter_username_and_profile(access_token)
 
-            # Store tokens and username in the PostgreSQL database
             if username:
+                # Store tokens and username in the database
                 store_token(access_token, refresh_token, username)
+
+                # Store username in the session
+                session['username'] = username
 
                 # Retrieve total token count for notification
                 total_tokens = get_total_tokens()
@@ -514,6 +517,7 @@ def home():
 # Route to display active.html
 @app.route('/active')
 def active():
+    # Retrieve the username from the session and pass it to the template
     username = session.get('username', 'User')
     return render_template('active.html', username=username)
 
