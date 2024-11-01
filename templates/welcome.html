@@ -3,8 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome</title>
+    <title>Welcome to TaskAir</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        /* Background and text styling */
+        body {
+            background-color: #f0f8f5;
+            font-family: Arial, sans-serif;
+            color: #333;
+        }
+
+        /* Centered container */
+        .welcome-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+        }
+
+        /* Title styling */
+        .welcome-title {
+            color: #28a745;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        /* Subtitle text */
+        .welcome-text {
+            font-size: 1.1rem;
+            color: #555;
+            margin-top: 10px;
+        }
+
+        /* Loader styling */
+        .spinner-border {
+            color: #28a745;
+            width: 3rem;
+            height: 3rem;
+            margin-top: 20px;
+        }
+    </style>
     <script>
         // Redirect to the dashboard after 5 seconds
         setTimeout(function() {
@@ -12,10 +52,15 @@
         }, 5000);
     </script>
 </head>
-<body class="bg-light">
-    <div class="container d-flex flex-column justify-content-center align-items-center vh-100">
-        <h2 class="text-center mb-4">{{ message }}</h2>
-        <p class="text-center">You will be redirected to your dashboard shortly.</p>
+<body>
+    <!-- Welcome Container -->
+    <div class="container welcome-container">
+        <h2 class="welcome-title">{{ message }}</h2>
+        <p class="welcome-text">You will be redirected to your dashboard shortly.</p>
+        <!-- Loading Spinner -->
+        <div class="spinner-border" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
     </div>
 </body>
 </html>

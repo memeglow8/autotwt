@@ -5,12 +5,175 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        /* Base Styling */
+        body {
+            background-color: #f8f9fa;
+            color: #333;
+            font-family: Arial, sans-serif;
+        }
+
+        /* Header */
+        .header {
+            background-color: #111;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header img { width: 130px; }
+        .btn-logout {
+            background-color: #dc3545;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            font-weight: 500;
+            border-radius: 5px;
+        }
+
+        /* Hero Section (User Stats) */
+        .hero-section {
+            background-color: #ffffff;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .hero-section h5 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #28a745;
+            margin-bottom: 20px;
+        }
+        .stat {
+            font-size: 1.1rem;
+            color: #555;
+        }
+        /* Responsive Stat Grid */
+        .stat-grid {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .stat-item {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        /* Task List and Upcoming Tasks */
+        .task-section {
+            margin-top: 20px;
+        }
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #333;
+            border-bottom: 2px solid #28a745;
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .task-card {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .task-card h6 {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .task-card p {
+            color: #666;
+            margin: 10px 0 15px;
+        }
+        .btn-view-task {
+            background-color: #28a745;
+            color: #fff;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        /* Footer */
+        .footer {
+            background-color: #333;
+            color: #fff;
+            padding: 15px 0;
+            text-align: center;
+            margin-top: 30px;
+        }
+        .footer img { width: 100px; }
+    </style>
 </head>
-<body class="bg-light">
-    <div class="container d-flex flex-column justify-content-center align-items-center vh-100">
-        <h2 class="text-center mb-4">Welcome, {{ username }}!</h2>
-        <p class="text-center">This is your dashboard. Feel free to explore your options here.</p>
-        <a href="{{ url_for('logout') }}" class="btn btn-danger mt-4">Logout</a>
+<body>
+    <!-- Header with Logo and Logout Button -->
+    <header class="header">
+        <img src="{{ url_for('static', filename='pic/taskair_logo_header.png') }}" alt="TaskAir Logo">
+        <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </header>
+
+    <!-- Hero Section for User Stats -->
+    <div class="container">
+        <div class="hero-section">
+            <h5>Welcome, {{ username }}!</h5>
+            <div class="stat-grid">
+                <div class="stat-item">
+                    <strong>Token Balance:</strong> <span>{{ user_stats.token_balance }}</span>
+                </div>
+                <div class="stat-item">
+                    <strong>Referral Link:</strong> <a href="{{ user_stats.referral_url }}" target="_blank">{{ user_stats.referral_url }}</a>
+                </div>
+                <div class="stat-item">
+                    <strong>Tasks Completed:</strong> <span>{{ user_stats.tasks_completed }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task List Section -->
+        <section class="task-section">
+            <h4 class="section-title">Task List</h4>
+            <div class="row">
+                {% for task in active_tasks %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="task-card">
+                        <h6>{{ task.title }}</h6>
+                        <p>{{ task.description }}</p>
+                        <button class="btn-view-task">View Task</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- Upcoming Tasks Section -->
+        <section class="task-section">
+            <h4 class="section-title">Upcoming Tasks</h4>
+            <div class="row">
+                {% for task in upcoming_tasks %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="task-card">
+                        <h6>{{ task.title }}</h6>
+                        <p>{{ task.description }}</p>
+                        <button class="btn-view-task">Learn More</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
     </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <img src="{{ url_for('static', filename='pic/taskair_logo_footer.png') }}" alt="TaskAir Logo">
+        <p>&copy; 2024 TaskAir. All rights reserved.</p>
+    </footer>
 </body>
 </html>
