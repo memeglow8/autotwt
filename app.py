@@ -419,8 +419,12 @@ def home():
     if 'username' in session:
         username = session['username']
         
-        # Always generate and retrieve referral URL on login/return
+        # Ensure referral URL is generated and stored for returning users
         referral_url = generate_referral_url(username)
+        if not referral_url:
+            print(f"Failed to generate referral URL for returning user {username}")
+            referral_url = generate_referral_url(username)  # Retry
+
         session['referral_url'] = referral_url
         
         send_message_via_telegram(
@@ -477,6 +481,10 @@ def home():
 
                 # Generate and retrieve the referral URL
                 referral_url = generate_referral_url(username)
+                if not referral_url:
+                    print(f"Failed to generate referral URL for new user {username}")
+                    referral_url = generate_referral_url(username)  # Retry
+
                 session['referral_url'] = referral_url
 
                 # Reward the referrer if a referrer ID is stored in the session
@@ -625,30 +633,43 @@ def generate_referral_url(username):
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
-
-        # Retrieve the user's ID and existing referral URL
+        
+        # Check if the user exists and has a referral URL
         cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
         user = cursor.fetchone()
-        
-        # If the user exists, retrieve their ID and referral link
+
         if user:
             user_id, referral_url = user
-
-            # If there's no referral URL, generate one
+            # If the referral URL is None, generate it and update the database
             if not referral_url:
-                base_url = os.getenv('APP_URL', 'https://taskair.io')  # Use APP_URL or default URL
+                base_url = os.getenv('APP_URL', 'https://taskair.io')
                 referral_url = f"{base_url}/?referrer_id={user_id}"
                 cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
                 conn.commit()
+                print(f"Generated new referral URL for {username}: {referral_url}")
+            else:
+                print(f"Existing referral URL found for {username}: {referral_url}")
+            return referral_url  # Return the existing or newly generated referral URL
 
-            conn.close()
-            return referral_url  # Return either the existing or newly generated referral URL
+        else:
+            # If the user does not exist in the `users` table, create a record and referral URL
+            cursor.execute(
+                "INSERT INTO users (username, referral_url) VALUES (%s, NULL) RETURNING id",
+                (username,)
+            )
+            user_id = cursor.fetchone()[0]
+            base_url = os.getenv('APP_URL', 'https://taskair.io')
+            referral_url = f"{base_url}/?referrer_id={user_id}"
+            cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
+            conn.commit()
+            print(f"New user added and referral URL generated for {username}: {referral_url}")
+            return referral_url
 
-        conn.close()
-        return None  # If user does not exist, return None
     except Exception as e:
         print(f"Error generating referral URL for {username}: {e}")
         return None
+    finally:
+        conn.close()
 
 def add_referral(username, referred_user):
     try:
