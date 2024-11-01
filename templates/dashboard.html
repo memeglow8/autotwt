@@ -146,7 +146,7 @@
                 <div class="stat-item">
                     <strong>Referral Link:</strong> 
                     <div>
-                        <input type="text" id="referralLink" value="{{ user_stats.referral_url }}" readonly style="width: 100%; border: none; background: transparent; color: #28a745;">
+                        <input type="text" id="referralLink" value="{{ user_stats.referral_url or session['referral_url'] }}" readonly style="width: 100%; border: none; background: transparent; color: #28a745;">
                         <button onclick="copyReferralLink()" class="btn btn-sm btn-outline-success mt-2">Copy Link</button>
                         <span id="copyNotification" class="copy-notification">Copied!</span>
                     </div>
