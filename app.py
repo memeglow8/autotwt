@@ -548,6 +548,19 @@ def welcome():
         message = f"Welcome back, @{username}!"
     return render_template('welcome.html', message=message)
 
+def get_user_token_balance(username):
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        cursor.execute("SELECT token_balance FROM users WHERE username = %s", (username,))
+        balance = cursor.fetchone()
+        conn.close()
+        return balance[0] if balance else 0
+    except Exception as e:
+        print(f"Error retrieving token balance for {username}: {e}")
+        return 0
+
+
 def get_user_stats(username):
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
