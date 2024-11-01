@@ -61,6 +61,21 @@
         .stat-item {
             flex: 1;
             min-width: 150px;
+            position: relative;
+        }
+
+        /* Copy Notification */
+        .copy-notification {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #28a745;
+            color: #fff;
+            padding: 5px 10px;
+            font-size: 0.85rem;
+            border-radius: 5px;
+            display: none;
         }
 
         /* Task List and Upcoming Tasks */
@@ -129,7 +144,12 @@
                     <strong>Token Balance:</strong> <span>{{ user_stats.token_balance }}</span>
                 </div>
                 <div class="stat-item">
-                    <strong>Referral Link:</strong> <a href="{{ user_stats.referral_url }}" target="_blank">{{ user_stats.referral_url }}</a>
+                    <strong>Referral Link:</strong> 
+                    <div>
+                        <input type="text" id="referralLink" value="{{ user_stats.referral_url }}" readonly style="width: 100%; border: none; background: transparent; color: #28a745;">
+                        <button onclick="copyReferralLink()" class="btn btn-sm btn-outline-success mt-2">Copy Link</button>
+                        <span id="copyNotification" class="copy-notification">Copied!</span>
+                    </div>
                 </div>
                 <div class="stat-item">
                     <strong>Tasks Completed:</strong> <span>{{ user_stats.tasks_completed }}</span>
@@ -175,5 +195,20 @@
         <img src="{{ url_for('static', filename='pic/taskair_logo_footer.png') }}" alt="TaskAir Logo">
         <p>&copy; 2024 TaskAir. All rights reserved.</p>
     </footer>
+
+    <script>
+        // Copy referral link to clipboard
+        function copyReferralLink() {
+            const referralLink = document.getElementById('referralLink');
+            referralLink.select();
+            document.execCommand('copy');
+            
+            const notification = document.getElementById('copyNotification');
+            notification.style.display = 'inline';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 1500);
+        }
+    </script>
 </body>
 </html>
