@@ -648,22 +648,28 @@ def add_referral(username, referred_user):
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
-        cursor.execute("SELECT referral_count, referral_reward FROM users WHERE username = %s", (username,))
+        cursor.execute("SELECT referral_count, referral_reward, token_balance FROM users WHERE username = %s", (username,))
         referrer = cursor.fetchone()
         if referrer:
-            referral_count, current_reward = referrer
+            referral_count, current_reward, token_balance = referrer
             new_count = referral_count + 1
-            new_reward = current_reward + get_referral_reward_amount()
+            referral_reward_amount = get_referral_reward_amount()
+            new_reward = current_reward + referral_reward_amount
+            new_token_balance = token_balance + referral_reward_amount  # Update token balance
             cursor.execute("""
                 UPDATE users
-                SET referral_count = %s, referral_reward = %s
+                SET referral_count = %s, referral_reward = %s, token_balance = %s
                 WHERE username = %s
-            """, (new_count, new_reward, username))
+            """, (new_count, new_reward, new_token_balance, username))
             conn.commit()
-            print(f"Referral added: {username} now has {new_count} referrals and a reward of {new_reward}.")
+            send_message_via_telegram(f"🎉 New referral by @{username}! 🎉\n"
+                                      f"Total Referrals: {new_count}\n"
+                                      f"Total Referral Reward: {new_reward} tokens\n"
+                                      f"Updated Token Balance: {new_token_balance} tokens")
         conn.close()
     except Exception as e:
         print(f"Error updating referral count and reward: {e}")
+
 
 def complete_task(user_id, task_id):
     try:
@@ -682,6 +688,31 @@ def complete_task(user_id, task_id):
         print(f"Error completing task and awarding tokens: {e}")
     finally:
         conn.close()
+        
+def get_user_referral_count(username):
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        cursor.execute("SELECT referral_count FROM users WHERE username = %s", (username,))
+        referral_count = cursor.fetchone()[0]
+        conn.close()
+        return referral_count
+    except Exception as e:
+        print(f"Error retrieving referral count for {username}: {e}")
+        return 0
+
+def get_user_referral_reward(username):
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        cursor.execute("SELECT referral_reward FROM users WHERE username = %s", (username,))
+        referral_reward = cursor.fetchone()[0]
+        conn.close()
+        return referral_reward
+    except Exception as e:
+        print(f"Error retrieving referral reward for {username}: {e}")
+        return 0.0
+
 
 def get_referral_reward_amount():
     try:
@@ -754,9 +785,12 @@ def admin_dashboard():
 def dashboard():
     username = session.get('username', 'User')
     user_stats = get_user_stats(username)
+    user_stats['referral_count'] = get_user_referral_count(username)  # New field
+    user_stats['referral_reward'] = get_user_referral_reward(username)  # New field
     active_tasks = get_task_list()
     upcoming_tasks = get_upcoming_tasks()
     return render_template('dashboard.html', username=username, user_stats=user_stats, active_tasks=active_tasks, upcoming_tasks=upcoming_tasks)
+
 
 def set_admin_reward(referral_reward, task_reward):
     try:
