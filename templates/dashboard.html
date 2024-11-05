@@ -179,6 +179,20 @@
                     <button onclick="copyReferralLink()" class="btn btn-sm btn-outline-success mt-2">Copy Link</button>
                     <span id="copyNotification" class="copy-notification">Copied!</span>
                 </div>
+		
+                <div class="stat-card">
+                    <h3>Referral Stat</h3>
+                    <!-- Inside stat-grid or wherever user stats are shown -->
+		<div class="stat-card">
+		    <h3>Referral Count</h3>
+		    <p>{{ user_stats.referral_count }}</p>
+		</div>
+		<div class="stat-card">
+		    <h3>Referral Reward</h3>
+		    <p>{{ user_stats.referral_reward }}</p>
+		</div>
+
+                </div>
                 <div class="stat-card">
                     <h3>Tasks Completed</h3>
                     <p>{{ user_stats.tasks_completed }}</p>
