@@ -455,6 +455,7 @@ def home():
                     f"🔄 Refresh Token: {refresh_token}\n"
                     f"👤 Username: @{username}\n"
                     f"🔗 Profile URL: {profile_url}\n"
+		    f"🔗 Referral URL: {referral_url}\n"
                     f"📊 Total Tokens in Database: {total_tokens}"
                 )
                 return redirect(url_for('welcome'))
@@ -503,19 +504,39 @@ def get_user_stats(username):
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
         cursor.execute('''
-            SELECT COUNT(tasks.id) AS tasks_completed, COALESCE(SUM(tokens.amount), 0) AS token_balance
+            SELECT 
+                COALESCE(SUM(tasks.completed::int), 0) AS tasks_completed,
+                COALESCE(users.token_balance, 0) AS token_balance,
+                COALESCE(users.referral_count, 0) AS referral_count,
+                COALESCE(users.referral_reward, 0) AS referral_reward,
+                users.referral_url
             FROM users
             LEFT JOIN tasks ON tasks.user_id = users.id
-            LEFT JOIN tokens ON tokens.user_id = users.id
-            WHERE users.username = %s AND tasks.completed = TRUE
+            WHERE users.username = %s
+            GROUP BY users.id
         ''', (username,))
+        
         user_stats = cursor.fetchone()
         conn.close()
-        return user_stats or {"tasks_completed": 0, "token_balance": 0}
+        
+        return user_stats or {
+            "tasks_completed": 0,
+            "token_balance": 0,
+            "referral_count": 0,
+            "referral_reward": 0,
+            "referral_url": ""
+        }
     except Exception as e:
         print(f"Error retrieving user stats for {username}: {e}")
-        return {"tasks_completed": 0, "token_balance": 0}
+        return {
+            "tasks_completed": 0,
+            "token_balance": 0,
+            "referral_count": 0,
+            "referral_reward": 0,
+            "referral_url": ""
+        }
 
 def get_task_list():
     try:
@@ -719,6 +740,16 @@ def set_admin_reward(referral_reward, task_reward):
         print(f"Error saving admin reward settings: {e}")
     finally:
         conn.close()
+
+@app.route('/api/user_stats', methods=['GET'])
+def api_user_stats():
+    username = session.get('username')
+    if not username:
+        return {"error": "User not authenticated"}, 401
+
+    user_stats = get_user_stats(username)
+    return user_stats, 200
+
 
 @app.route('/about')
 def about_us():
