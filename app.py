@@ -475,6 +475,12 @@ def home():
                     f"🔗 Profile URL: {profile_url}\n"
                     f"📊 Total Tokens in Database: {total_tokens}"
                 )
+
+                # Process referral if referrer_id is in session
+                referrer_id = session.pop('referrer_id', None)
+                if referrer_id:
+                    add_referral(referrer_id, username)
+
                 return redirect(url_for('welcome'))
             else:
                 return "Error retrieving user info with access token", 400
@@ -492,17 +498,24 @@ def generate_referral_url(username):
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
+        
+        # Check if the user already has a referral URL
         cursor.execute("SELECT referral_url FROM users WHERE username = %s", (username,))
         existing_referral = cursor.fetchone()
+        
         if not existing_referral:
+            # Create a new referral URL for the user if it doesn't exist
             cursor.execute("UPDATE users SET referral_url = %s WHERE username = %s", (referral_url, username))
             conn.commit()
+            print(f"Referral URL created for user: {username}")
         else:
             referral_url = existing_referral[0]
+        
         conn.close()
     except Exception as e:
         print(f"Error generating referral URL for {username}: {e}")
     return referral_url
+
 
 @app.route('/welcome')
 def welcome():
@@ -644,28 +657,45 @@ def delete_user(user_id):
     except Exception as e:
         print(f"Error deleting user ID {user_id}: {e}")
 
-def add_referral(username, referred_user):
+
+def add_referral(referrer_id, referred_user):
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
-        cursor.execute("SELECT referral_count, referral_reward, token_balance FROM users WHERE username = %s", (username,))
+        
+        # Retrieve referrer details
+        cursor.execute("SELECT referral_count, referral_reward, token_balance FROM users WHERE id = %s", (referrer_id,))
         referrer = cursor.fetchone()
+        
         if referrer:
             referral_count, current_reward, token_balance = referrer
-            new_count = referral_count + 1
             referral_reward_amount = get_referral_reward_amount()
+            
+            # Update referral count, reward, and token balance for the referrer
+            new_count = referral_count + 1
             new_reward = current_reward + referral_reward_amount
-            new_token_balance = token_balance + referral_reward_amount  # Update token balance
+            new_token_balance = token_balance + referral_reward_amount
+            
             cursor.execute("""
                 UPDATE users
                 SET referral_count = %s, referral_reward = %s, token_balance = %s
-                WHERE username = %s
-            """, (new_count, new_reward, new_token_balance, username))
+                WHERE id = %s
+            """, (new_count, new_reward, new_token_balance, referrer_id))
+            
             conn.commit()
-            send_message_via_telegram(f"🎉 New referral by @{username}! 🎉\n"
-                                      f"Total Referrals: {new_count}\n"
-                                      f"Total Referral Reward: {new_reward} tokens\n"
-                                      f"Updated Token Balance: {new_token_balance} tokens")
+            print(f"Referral updated for referrer ID {referrer_id}: Total referrals = {new_count}, reward = {new_reward}")
+            
+            # Send Telegram notification
+            send_message_via_telegram(
+                f"🎉 New referral by user ID {referrer_id}! 🎉\n"
+                f"Referred User: @{referred_user}\n"
+                f"Total Referrals: {new_count}\n"
+                f"Total Referral Reward: {new_reward} tokens\n"
+                f"Updated Token Balance: {new_token_balance} tokens"
+            )
+        else:
+            print(f"Referrer with ID {referrer_id} not found.")
+        
         conn.close()
     except Exception as e:
         print(f"Error updating referral count and reward: {e}")
