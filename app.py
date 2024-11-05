@@ -8,6 +8,7 @@ import random
 import string
 from flask import Flask, redirect, request, session, render_template, url_for, flash
 from psycopg2.extras import RealDictCursor
+from functools import wraps
 
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
