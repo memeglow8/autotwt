@@ -501,16 +501,18 @@ def generate_referral_url(username):
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
 
-        # Retrieve or assign the user ID to create a referral URL with `referrer_id`
+        # Retrieve the user ID and referral URL from the database
         cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
         result = cursor.fetchone()
 
         if result:
             user_id, existing_referral_url = result
+
+            # If a referral URL exists, use it; otherwise, create a new one
             if existing_referral_url:
                 referral_url = existing_referral_url
             else:
-                # Generate and store referral URL if missing
+                # Create a referral URL if it doesn’t exist and store it in the database
                 referral_url = f"https://gifter-7vz7.onrender.com/?referrer_id={user_id}"
                 cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
                 conn.commit()
@@ -521,6 +523,7 @@ def generate_referral_url(username):
         print(f"Error generating referral URL for {username}: {e}")
 
     return referral_url
+
 
 
 
