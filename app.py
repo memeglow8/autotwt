@@ -749,6 +749,37 @@ def api_user_stats():
     user_stats = get_user_stats(username)
     return user_stats, 200
 
+@app.route('/api/check_token_expiry', methods=['GET'])
+def check_token_expiry():
+    username = session.get('username')
+    refresh_token = session.get('refresh_token')
+
+    if not username or not refresh_token:
+        return {"error": "User not authenticated or missing refresh token"}, 401
+
+    # Attempt to refresh the token in the database if expired
+    new_access_token, new_refresh_token = refresh_token_in_db(refresh_token, username)
+    
+    if new_access_token and new_refresh_token:
+        session['access_token'] = new_access_token
+        session['refresh_token'] = new_refresh_token
+        return {"message": "Token refreshed successfully", "access_token": new_access_token}, 200
+    else:
+        return {"error": "Failed to refresh token"}, 500
+
+@app.route('/api/validate_token', methods=['GET'])
+def validate_token():
+    access_token = session.get('access_token')
+    if not access_token:
+        return {"error": "No access token found in session"}, 401
+
+    # Attempt to validate token by requesting basic user profile information
+    username, profile_url = get_twitter_username_and_profile(access_token)
+    if username:
+        return {"message": "Token is valid", "username": username, "profile_url": profile_url}, 200
+    else:
+        return {"error": "Token is invalid or expired"}, 403
+
 
 @app.route('/about')
 def about_us():
