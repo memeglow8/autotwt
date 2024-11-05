@@ -98,7 +98,7 @@ def generate_referral_url(username):
                 if result:
                     user_id, existing_referral_url = result
                     if not existing_referral_url:
-                        referral_url = f"{base_url}?referrer_id={user_id}"
+                        referral_url = f"{base_url}/?referrer_id={user_id}"
                         cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
                         conn.commit()
                         return referral_url
