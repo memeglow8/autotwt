@@ -460,6 +460,7 @@ def home():
             if username:
                 # Store tokens and user info
                 store_token(access_token, refresh_token, username)
+                # Generate referral URL if missing
                 referral_url = generate_referral_url(username)
                 session['username'] = username
                 session['access_token'] = access_token
@@ -509,6 +510,7 @@ def generate_referral_url(username):
             if existing_referral_url:
                 referral_url = existing_referral_url
             else:
+                # Generate and store referral URL if missing
                 referral_url = f"https://gifter-7vz7.onrender.com/?referrer_id={user_id}"
                 cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
                 conn.commit()
@@ -519,6 +521,7 @@ def generate_referral_url(username):
         print(f"Error generating referral URL for {username}: {e}")
 
     return referral_url
+
 
 
 @app.route('/welcome')
