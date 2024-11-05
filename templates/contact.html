@@ -6,33 +6,81 @@
     <title>Contact Us - TaskAir</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
-        body { background-color: #f8f9fa; color: #333; font-family: Arial, sans-serif; }
-        .header { background-color: #111; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
-        .header img { width: 130px; }
-        .btn-logout { background-color: #dc3545; color: #fff; border: none; padding: 8px 16px; font-weight: 500; border-radius: 5px; }
-        .page-title { font-size: 1.8rem; font-weight: bold; color: #28a745; margin: 30px 0; text-align: center; }
-        .content-section { background-color: #ffffff; border-radius: 8px; padding: 20px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); }
-        .footer { background-color: #333; color: #fff; padding: 15px 0; text-align: center; margin-top: 30px; }
-        .footer img { width: 100px; }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; color: #333; display: flex; flex-direction: column; }
+        .content { flex: 1; }
+
+        .bg-dark { background-color: #111; }
+        .nav-link { color: #aaa; margin: 0 15px; font-weight: 500; text-decoration: none; }
+        .nav-link:hover { color: #fff; }
+        .btn-outline-light { color: #fff; border: 1px solid #fff; border-radius: 5px; padding: 8px 15px; font-weight: 500; }
+        .btn-outline-light:hover { background-color: #28a745; color: #fff; border-color: #28a745; }
+        .btn-gradient { background: linear-gradient(90deg, #28a745, #00d4ff); color: #fff; border-radius: 5px; padding: 8px 15px; font-weight: 500; border: none; }
+        .btn-gradient:hover { opacity: 0.9; }
+        @media (max-width: 768px) { .nav-link { display: none; } .header-buttons .btn { width: 100%; margin: 5px 0; } }
+
+        .hero-section { background-color: #f0f8f5; padding: 60px 20px; text-align: center; }
+        .hero-section h1 { color: #28a745; font-size: 2.5rem; font-weight: bold; }
+        .page-content { padding: 60px 20px; }
+        .content-card { background-color: #f9f9f9; border: none; padding: 30px; border-radius: 5px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); margin-bottom: 20px; }
+        .section-title { font-size: 1.5rem; font-weight: bold; color: #28a745; border-bottom: 3px solid #28a745; padding-bottom: 10px; margin-bottom: 25px; text-align: center; }
+
+        footer { background-color: #333; color: #fff; padding: 20px; text-align: center; flex-shrink: 0; }
+        .footer-logo { width: 100px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
-    <header class="header">
-        <img src="{{ url_for('static', filename='pic/taskair_logo_header.png') }}" alt="TaskAir Logo">
-        <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    <header class="bg-dark py-3">
+        <div class="container d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <img src="https://i.ibb.co/drX2BcY/taskair-icon.png" alt="TaskAir Icon" style="width: 40px; margin-right: 8px;">
+                <span class="text-white h4 mb-0">TaskAir</span>
+            </div>
+            <nav class="d-none d-md-flex">
+                <a href="about_us.html" class="nav-link">About Us</a>
+                <a href="blog.html" class="nav-link">Blog</a>
+                <a href="docs.html" class="nav-link">Docs</a>
+                <a href="contact.html" class="nav-link">Contact Us</a>
+            </nav>
+            
+        </div>
     </header>
 
-    <div class="container">
-        <h1 class="page-title">Contact Us</h1>
-        <div class="content-section">
-            <p>If you have questions or feedback, feel free to reach out to us.</p>
-            <p>Email: support@taskair.io</p>
-        </div>
+    <div class="content">
+        <section class="hero-section">
+            <h1>Contact Us</h1>
+        </section>
+        <section class="page-content">
+            <div class="container">
+                <div class="content-card">
+                    <h2 class="section-title">Get in Touch</h2>
+                    <p>We’d love to hear from you! Fill out the form below to reach out to our team with any questions, comments, or feedback.</p>
+                    <form>
+                        <div class="form-group">
+                            <label for="name">Name</label>
+                            <input type="text" class="form-control" id="name" placeholder="Your name">
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" class="form-control" id="email" placeholder="Your email">
+                        </div>
+                        <div class="form-group">
+                            <label for="message">Message</label>
+                            <textarea class="form-control" id="message" rows="4" placeholder="Your message"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-gradient mt-3">Send Message</button>
+                    </form>
+                </div>
+            </div>
+        </section>
     </div>
 
-    <footer class="footer">
-        <img src="{{ url_for('static', filename='pic/taskair_logo_footer.png') }}" alt="TaskAir Logo">
-        <p>&copy; 2024 TaskAir. All rights reserved.</p>
+    <footer>
+        <img src="https://i.ibb.co/drX2BcY/taskair-icon.png" alt="TaskAir Icon" class="footer-logo">
+        <p>© 2024 TaskAir. All rights reserved.</p>
+        <p><a href="#">Terms of Service</a> | <a href="#">Privacy Policy</a> | <a href="contact.html">Contact Us</a></p>
     </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

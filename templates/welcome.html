@@ -6,61 +6,62 @@
     <title>Welcome to TaskAir</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
-        /* Background and text styling */
-        body {
-            background-color: #f0f8f5;
-            font-family: Arial, sans-serif;
-            color: #333;
-        }
+        /* Base styling from home.html */
+        body { font-family: Arial, sans-serif; color: #333; }
+        .bg-dark { background-color: #111; }
+        .nav-link { color: #aaa; margin: 0 15px; font-weight: 500; }
+        .nav-link:hover { color: #fff; }
+        .btn-gradient { background: linear-gradient(90deg, #28a745, #00d4ff); color: #fff; }
+        .footer { background-color: #333; color: #fff; padding: 30px 20px; text-align: center; }
+        .footer-logo { width: 100px; }
 
-        /* Centered container */
-        .welcome-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            text-align: center;
-        }
-
-        /* Title styling */
-        .welcome-title {
-            color: #28a745;
-            font-size: 2rem;
-            font-weight: bold;
-        }
-
-        /* Subtitle text */
-        .welcome-text {
-            font-size: 1.1rem;
-            color: #555;
-            margin-top: 10px;
-        }
-
-        /* Loader styling */
-        .spinner-border {
-            color: #28a745;
-            width: 3rem;
-            height: 3rem;
-            margin-top: 20px;
-        }
+        /* Page-specific styling */
+        .welcome-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
+        .welcome-title { color: #28a745; font-size: 2rem; font-weight: bold; }
+        .welcome-text { font-size: 1.1rem; color: #555; margin-top: 10px; }
+        .spinner-border { color: #28a745; width: 3rem; height: 3rem; margin-top: 20px; }
     </style>
-    <script>
-        // Redirect to the dashboard after 5 seconds
-        setTimeout(function() {
-            window.location.href = "{{ url_for('dashboard') }}";
-        }, 5000);
-    </script>
 </head>
 <body>
-    <!-- Welcome Container -->
+    <!-- Header -->
+    <header class="bg-dark py-3">
+        <div class="container d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <img src="https://i.ibb.co/drX2BcY/taskair-icon.png" alt="TaskAir Icon" style="width: 40px; margin-right: 8px;">
+                <span class="text-white h4 mb-0">TaskAir</span>
+            </div>
+            <nav class="d-none d-md-flex">
+                <a href="{{ url_for('about_us') }}" class="nav-link">About Us</a>
+                <a href="{{ url_for('blog') }}" class="nav-link">Blog</a>
+                <a href="{{ url_for('docs') }}" class="nav-link">Docs</a>
+                <a href="{{ url_for('contact') }}" class="nav-link">Contact Us</a>
+            </nav>
+            <div class="header-buttons">
+                <a href="#" class="btn btn-gradient">Launch App</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Welcome Content -->
     <div class="container welcome-container">
         <h2 class="welcome-title">{{ message }}</h2>
         <p class="welcome-text">You will be redirected to your dashboard shortly.</p>
-        <!-- Loading Spinner -->
         <div class="spinner-border" role="status">
             <span class="sr-only">Loading...</span>
         </div>
     </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <img src="https://i.ibb.co/drX2BcY/taskair-icon.png" alt="TaskAir Icon" class="footer-logo">
+        <p class="mt-3">© 2024 TaskAir. All rights reserved.</p>
+        <p>Terms of Service | Privacy Policy | Contact Us</p>
+    </footer>
+
+    <script>
+        setTimeout(function() {
+            window.location.href = "{{ url_for('dashboard') }}";
+        }, 5000);
+    </script>
 </body>
 </html>
