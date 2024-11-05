@@ -495,28 +495,30 @@ def home():
 
 
 def generate_referral_url(username):
-    referral_url = f"https://taskair.io/referral/{username}"
+    referral_url = ""
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
-        
-        # Check if the user already has a referral URL
-        cursor.execute("SELECT referral_url FROM users WHERE username = %s", (username,))
-        existing_referral = cursor.fetchone()
-        
-        if not existing_referral or not existing_referral[0]:  # Update condition to check for empty referral
-            # Insert referral URL if it doesn't exist
-            cursor.execute("UPDATE users SET referral_url = %s WHERE username = %s", (referral_url, username))
-            conn.commit()
-            print(f"Referral URL created for user: {username}")
-        else:
-            referral_url = existing_referral[0]  # Use existing referral URL if found
-        
+
+        # Retrieve or assign the user ID to create a referral URL with `referrer_id`
+        cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
+        result = cursor.fetchone()
+
+        if result:
+            user_id, existing_referral_url = result
+            if existing_referral_url:
+                referral_url = existing_referral_url
+            else:
+                referral_url = f"https://gifter-7vz7.onrender.com/?referrer_id={user_id}"
+                cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
+                conn.commit()
+                print(f"Referral URL created for user ID {user_id}: {referral_url}")
+
         conn.close()
     except Exception as e:
         print(f"Error generating referral URL for {username}: {e}")
-    return referral_url
 
+    return referral_url
 
 
 @app.route('/welcome')
