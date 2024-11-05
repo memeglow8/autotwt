@@ -496,35 +496,32 @@ def home():
 
 
 def generate_referral_url(username):
-    referral_url = ""
+    referral_url = f"https://taskair.io/referral/{username}"  # Adjusted default URL generation
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
 
-        # Retrieve the user ID and referral URL from the database
+        # Check if the user already has a referral URL
         cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
         result = cursor.fetchone()
 
         if result:
             user_id, existing_referral_url = result
-
-            # If a referral URL exists, use it; otherwise, create a new one
             if existing_referral_url:
                 referral_url = existing_referral_url
             else:
-                # Create a referral URL if it doesn’t exist and store it in the database
-                referral_url = f"https://gifter-7vz7.onrender.com/?referrer_id={user_id}"
+                # Update the referral URL in the database if it does not exist
                 cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
                 conn.commit()
                 print(f"Referral URL created for user ID {user_id}: {referral_url}")
+        else:
+            print(f"User {username} not found in the database when generating referral URL.")
 
         conn.close()
     except Exception as e:
-        print(f"Error generating referral URL for {username}: {e}")
+        print(f"Error generating or retrieving referral URL for {username}: {e}")
 
     return referral_url
-
-
 
 
 @app.route('/welcome')
