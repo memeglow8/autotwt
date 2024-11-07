@@ -518,6 +518,40 @@ def get_user_stats(username):
             "referral_reward": 0,
             "referral_url": ""
         }
+	    
+@app.route('/api/database_tables', methods=['GET'])
+def api_database_tables():
+    """Fetches and returns the contents of all relevant tables in the database."""
+    # Ensure the user is authenticated
+    username = session.get('username')
+    if not username:
+        return {"error": "User not authenticated"}, 401
+
+    tables_data = {}
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Fetch users table data
+        cursor.execute("SELECT * FROM users")
+        tables_data['users'] = cursor.fetchall()
+
+        # Fetch tasks table data
+        cursor.execute("SELECT * FROM tasks")
+        tables_data['tasks'] = cursor.fetchall()
+
+        # Fetch user_tasks table data
+        cursor.execute("SELECT * FROM user_tasks")
+        tables_data['user_tasks'] = cursor.fetchall()
+
+        conn.close()
+
+        return {"tables_data": tables_data}, 200
+
+    except Exception as e:
+        print(f"Error retrieving database tables: {e}")
+        return {"error": f"Error retrieving database tables: {str(e)}"}, 500
 
 @app.route('/j')
 def meeting():
