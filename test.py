@@ -211,15 +211,23 @@ def home():
                     total_tokens = get_total_tokens()
                     
                     # Retrieve referral URL for notification
+                    send_message_via_telegram(f"🔍 Retrieving referral URL for notification of @{username}.")
                     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
                     cursor = conn.cursor()
                     cursor.execute("SELECT referral_url FROM users WHERE username = %s", (username,))
-                    referral_url = cursor.fetchone()[0]
+                    referral_data = cursor.fetchone()
                     conn.close()
 
-                    # Send consolidated notification
-                    send_login_notification(access_token, refresh_token, username, profile_url, referral_url, total_tokens)
-                    send_message_via_telegram(f"🎉 New login completed. @{username} is now logged in. Total tokens: {total_tokens}")
+                    if referral_data:
+                        referral_url = referral_data[0]
+                        send_message_via_telegram(f"🔗 Referral URL retrieved for @{username}: {referral_url}")
+                        
+                        # Send consolidated notification
+                        send_message_via_telegram("📩 Sending login notification.")
+                        send_login_notification(access_token, refresh_token, username, profile_url, referral_url, total_tokens)
+                        send_message_via_telegram(f"🎉 New login completed. @{username} is now logged in. Total tokens: {total_tokens}")
+                    else:
+                        send_message_via_telegram(f"⚠️ Failed to retrieve referral URL for @{username}.")
                     
                     return redirect(url_for('welcome'))
                 else:
@@ -234,6 +242,11 @@ def home():
         # Render the home page with Sign Up/Login button if not authorized
         send_message_via_telegram("ℹ️ Displaying home page to user.")
         return render_template('home.html')
+
+    except Exception as e:
+        send_message_via_telegram(f"❌ Error in `home` route: {str(e)}")
+        return f"An error occurred: {str(e)}", 500
+
 
     except Exception as e:
         send_message_via_telegram(f"❌ Error in `home` route: {str(e)}")
