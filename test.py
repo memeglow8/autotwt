@@ -78,21 +78,34 @@ def store_token(access_token, refresh_token, username):
     print("Storing token in the database...")
 
     try:
+        # Connect to the database
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
 
+        # Check if user exists
         cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
         existing_user = cursor.fetchone()
 
         if existing_user:
+            # User exists; update tokens and check for referral URL
             user_id, referral_url = existing_user
             cursor.execute(
                 "UPDATE users SET access_token = %s, refresh_token = %s WHERE id = %s",
                 (access_token, refresh_token, user_id)
             )
             print(f"Updated tokens for existing user @{username}")
+
+            # If the referral URL is missing, create it
+            if not referral_url:
+                referral_url = f"{APP_URL}/?referrer_id={user_id}"
+                cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
+                print(f"Generated missing referral URL for returning user: {referral_url}")
+
+                # Notify via Telegram
+                send_message_via_telegram(f"🔗 Created missing referral URL for returning user @{username}: {referral_url}")
+        
         else:
-            # Create a new user with referral handling
+            # New user; create entry with referral URL
             cursor.execute(
                 '''
                 INSERT INTO users (username, access_token, refresh_token, referral_count, referral_reward, token_balance)
@@ -105,6 +118,7 @@ def store_token(access_token, refresh_token, username):
             cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
             print(f"New user created with referral URL: {referral_url}")
 
+            # Apply referral reward if referrer_id is in session
             referrer_id = session.get('referrer_id')
             if referrer_id:
                 referral_reward = 10.0
@@ -121,12 +135,13 @@ def store_token(access_token, refresh_token, username):
 
         conn.commit()
         conn.close()
-        
-        # Notify via Telegram
-        send_message_via_telegram(f"💾 User @{username} stored. Referral URL: {referral_url}")
+
+        # Notify via Telegram with the referral URL
+        send_message_via_telegram(f"💾 User @{username} has been stored. Referral URL: {referral_url}")
 
     except Exception as e:
         print(f"Database error while storing token: {e}")
+
 
 @app.route('/')
 def home():
