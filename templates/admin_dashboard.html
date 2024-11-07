@@ -414,6 +414,41 @@
         });
     });
 </script>
+<script>
+    // Open Add Task Modal
+    function openAddTaskModal() {
+        $('#addTaskModal').modal('show');
+    }
+
+    // Handle Add Task Form Submission
+    $("#addTaskForm").submit(function(e) {
+        e.preventDefault();
+        
+        // Get form data
+        const taskData = {
+            title: $("#taskTitle").val(),
+            description: $("#taskDescription").val(),
+            reward: $("#taskReward").val()
+        };
+
+        // Send AJAX POST request to add task
+        $.ajax({
+            url: '/api/add_task',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(taskData),
+            success: function(response) {
+                alert(response.message);
+                $('#addTaskModal').modal('hide');
+                location.reload();  // Reload the page to show the new task
+            },
+            error: function(xhr) {
+                alert("Error adding task: " + xhr.responseJSON.error);
+            }
+        });
+    });
+</script>
+
 
 </body>
 
