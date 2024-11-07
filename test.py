@@ -518,7 +518,18 @@ def get_user_stats(username):
             "referral_reward": 0,
             "referral_url": ""
         }
-	    
+
+def get_tasks(status):
+    """Fetch tasks based on their status."""
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cursor.execute("SELECT title, description FROM tasks WHERE status = %s", (status,))
+    tasks = cursor.fetchall()
+    conn.close()
+    
+    return tasks
+
 @app.route('/api/database_tables', methods=['GET'])
 def api_database_tables():
     """Fetches and returns the contents of all relevant tables in the database."""
@@ -772,25 +783,21 @@ def welcome():
 
 @app.route('/dashboard')
 def dashboard():
-    # Retrieve the username from the session for personalization
-    username = session.get('username', 'User')
+    username = session.get('username')
+    if not username:
+        return redirect(url_for('home'))
     
-    # Fetch user stats from the database based on username
-    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
-    cursor.execute("SELECT token_balance, referral_count FROM users WHERE username = %s", (username,))
-    user_stats = cursor.fetchone()
-    
-    conn.close()
+    user_stats = get_user_stats(username)
+    active_tasks = get_tasks("active")
+    upcoming_tasks = get_tasks("upcoming")
 
-    # Check if user_stats was retrieved successfully
-    if not user_stats:
-        user_stats = {"token_balance": 0, "referral_count": 0}  # Defaults if user not found
-
-    # Render the dashboard template with user stats
-    return render_template('dashboard.html', username=username, user_stats=user_stats)
-
+    return render_template(
+        'dashboard.html',
+        username=username,
+        user_stats=user_stats,
+        active_tasks=active_tasks,
+        upcoming_tasks=upcoming_tasks
+    )
 
 @app.route('/logout')
 def logout():
