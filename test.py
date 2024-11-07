@@ -828,11 +828,44 @@ def admin_login():
 
 @app.route('/admin_dashboard')
 def admin_dashboard():
-    """Admin dashboard route, restricted to logged-in admins."""
     if not session.get('is_admin'):
-        flash("Please log in to access the admin dashboard.", "warning")
         return redirect(url_for('admin_login'))
-    return render_template('admin_dashboard.html')
+
+    # Fetch data for users, tasks, and other stats
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    # Fetch users
+    cursor.execute("SELECT id, username, referral_count, token_balance, 'Active' as status FROM users")
+    users = cursor.fetchall()
+    
+    # Fetch tasks
+    cursor.execute("SELECT id, title, description, reward, status FROM tasks")
+    tasks = cursor.fetchall()
+    
+    # Fetch stats
+    cursor.execute("SELECT COUNT(*) FROM users")
+    total_users = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT COUNT(*) FROM tasks WHERE status = 'active'")
+    active_tasks = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT COALESCE(SUM(token_balance), 0) FROM users")
+    total_tokens_distributed = cursor.fetchone()['coalesce']
+    
+    # Fetch recent logs (or use placeholders for testing)
+    logs = ["User registered", "Task completed", "Referral bonus awarded"]  # Example logs
+
+    conn.close()
+
+    return render_template('admin_dashboard.html', 
+                           users=users,
+                           tasks=tasks,
+                           total_users=total_users,
+                           active_tasks=active_tasks,
+                           total_tokens_distributed=total_tokens_distributed,
+                           logs=logs)
+
 
 def get_analytics_overview():
     """Fetch analytics data for the admin dashboard."""
