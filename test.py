@@ -83,7 +83,25 @@ def init_db():
     conn.commit()
     conn.close()
     print("Database initialized with updated schema.")
-    
+
+def update_token_balance_with_referral(user_id, referral_reward):
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+
+        # Update the token balance to include referral rewards
+        cursor.execute('''
+            UPDATE users
+            SET token_balance = token_balance + %s
+            WHERE id = %s
+        ''', (referral_reward, user_id))
+        
+        conn.commit()
+        conn.close()
+        logging.info(f"Updated token balance for user ID {user_id} to include referral rewards.")
+    except Exception as e:
+        logging.error(f"Error updating token balance with referral: {e}")
+
 
 def store_token(access_token, refresh_token, username):
     print("Storing token in the database...")
