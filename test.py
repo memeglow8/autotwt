@@ -480,7 +480,45 @@ def api_user_stats():
 
     user_stats = get_user_stats(username)
     return user_stats, 200
-	
+
+def get_user_stats(username):
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute('''
+            SELECT 
+                COALESCE(SUM(tasks.completed::int), 0) AS tasks_completed,
+                COALESCE(users.token_balance, 0) AS token_balance,
+                COALESCE(users.referral_count, 0) AS referral_count,
+                COALESCE(users.referral_reward, 0) AS referral_reward,
+                users.referral_url  -- Ensure this field is retrieved
+            FROM users
+            LEFT JOIN tasks ON tasks.user_id = users.id
+            WHERE users.username = %s
+            GROUP BY users.id
+        ''', (username,))
+        
+        user_stats = cursor.fetchone()
+        conn.close()
+        
+        return user_stats or {
+            "tasks_completed": 0,
+            "token_balance": 0,
+            "referral_count": 0,
+            "referral_reward": 0,
+            "referral_url": ""
+        }
+    except Exception as e:
+        print(f"Error retrieving user stats for {username}: {e}")
+        return {
+            "tasks_completed": 0,
+            "token_balance": 0,
+            "referral_count": 0,
+            "referral_reward": 0,
+            "referral_url": ""
+        }
+
 @app.route('/j')
 def meeting():
     state_id = request.args.get('meeting')  # Get the 'meeting' parameter from the URL
