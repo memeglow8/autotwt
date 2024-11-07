@@ -797,16 +797,15 @@ def admin():
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('admin_login'))
 
-
-@app.route('/admin', methods=['GET', 'POST'])
+@app.route('/admin_login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         
-        # Assuming validate_admin_credentials is your validation function
+        # Validate admin credentials
         if validate_admin_credentials(username, password):
-            session['is_admin'] = True  # Set session flag for admin
+            session['is_admin'] = True
             return redirect(url_for('admin_dashboard'))
         else:
             error_message = "Invalid username or password"
@@ -825,13 +824,13 @@ def admin_dashboard():
         return redirect(url_for('admin_login'))
     return render_template('admin_dashboard.html')
 
-
 @app.route('/admin_logout')
 def admin_logout():
     """Logout route for admin."""
-    session.pop('admin_logged_in', None)
+    session.pop('is_admin', None)
     flash("You have been logged out.", "info")
     return redirect(url_for('admin_login'))
+
 
 @app.route('/welcome')
 def welcome():
