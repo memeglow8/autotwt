@@ -659,6 +659,35 @@ def get_user_stats(username):
             "referral_url": ""
         }
 
+@app.route('/api/add_task', methods=['POST'])
+def add_task():
+    """API to add a new task to the tasks table."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+    
+    data = request.get_json()
+    title = data.get('title')
+    description = data.get('description')
+    reward = data.get('reward')
+
+    if not title or not reward:
+        return {"error": "Title and reward are required fields"}, 400
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO tasks (title, description, reward) VALUES (%s, %s, %s)",
+            (title, description, reward)
+        )
+        conn.commit()
+        conn.close()
+        logging.info("New task added successfully.")
+        return {"message": "Task added successfully"}, 201
+    except Exception as e:
+        logging.error(f"Error adding task: {str(e)}")
+        return {"error": "Failed to add task"}, 500
+
 def get_tasks(status):
     """Fetch tasks based on their status."""
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
@@ -917,13 +946,80 @@ def get_analytics_overview():
 
     return analytics
 
-@app.route('/admin/analytics', methods=['GET'])
-def admin_analytics():
+@app.route('/api/admin/analytics', methods=['GET'])
+def get_analytics():
     if not session.get('is_admin'):
-        return redirect(url_for('admin_login'))
-    
-    analytics = get_analytics_overview()
-    return render_template('admin_dashboard.html', analytics=analytics)
+        return {"error": "Unauthorized"}, 401
+
+    analytics_data = get_analytics_overview()
+    return jsonify(analytics_data), 200
+
+
+@app.route('/api/tasks/<int:task_id>', methods=['GET'])
+def view_task(task_id):
+    """Retrieve details of a specific task."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
+        task = cursor.fetchone()
+        conn.close()
+        return task, 200
+    except Exception as e:
+        logging.error(f"Error viewing task: {e}")
+        return {"error": "Failed to view task"}, 500
+
+@app.route('/api/users/<int:user_id>', methods=['GET'])
+def view_user(user_id):
+    """Retrieve details of a specific user."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+        conn.close()
+        return user, 200
+    except Exception as e:
+        logging.error(f"Error viewing user: {e}")
+        return {"error": "Failed to view user"}, 500
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """Delete a user by ID."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        conn.commit()
+        conn.close()
+        return {"message": "User deleted successfully"}, 200
+    except Exception as e:
+        logging.error(f"Error deleting user: {e}")
+        return {"error": "Failed to delete user"}, 500
+
+
+@app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    """Delete a task by ID."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM tasks WHERE id = %s", (task_id,))
+        conn.commit()
+        conn.close()
+        return {"message": "Task deleted successfully"}, 200
+    except Exception as e:
+        logging.error(f"Error deleting task: {e}")
+        return {"error": "Failed to delete task"}, 500
+
 
 def get_all_users():
     """Retrieve all users for admin management."""
