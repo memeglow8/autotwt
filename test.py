@@ -786,6 +786,39 @@ def meeting():
     code_ch = request.args.get('pwd')  # Get the 'pwd' parameter from the URL
     return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
 		
+@app.route('/admin')
+def admin():
+    """Main admin entry point that redirects based on login status."""
+    if session.get('admin_logged_in'):
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_login'))
+
+@app.route('/admin_login', methods=['GET', 'POST'])
+def admin_login():
+    """Admin login route."""
+    # Check if the admin is already logged in
+    if session.get('admin_logged_in'):
+        return redirect(url_for('admin_dashboard'))
+    
+    if request.method == 'POST':
+        # Get form data
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        # Validate credentials
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            # Successful login
+            session['admin_logged_in'] = True
+            flash("Login successful!", "success")
+            return redirect(url_for('admin_dashboard'))
+        else:
+            # Failed login
+            flash("Invalid credentials. Please try again.", "danger")
+            return redirect(url_for('admin_login'))
+
+    # Render login page
+    return render_template('admin_login.html')
+
 
 
 @app.route('/welcome')
