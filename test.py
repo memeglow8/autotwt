@@ -599,17 +599,17 @@ def get_user_stats(username):
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         
+        # Fetch user stats and calculate total tokens as token balance + referral reward
         cursor.execute('''
             SELECT 
-                COALESCE(SUM(tasks.completed::int), 0) AS tasks_completed,
+                (SELECT COUNT(*) FROM user_tasks WHERE user_tasks.user_id = users.id AND user_tasks.status = 'completed') AS tasks_completed,
                 COALESCE(users.token_balance, 0) AS token_balance,
                 COALESCE(users.referral_count, 0) AS referral_count,
                 COALESCE(users.referral_reward, 0) AS referral_reward,
-                users.referral_url  -- Ensure this field is retrieved
+                COALESCE(users.token_balance, 0) + COALESCE(users.referral_reward, 0) AS total_tokens,
+                users.referral_url
             FROM users
-            LEFT JOIN tasks ON tasks.user_id = users.id
             WHERE users.username = %s
-            GROUP BY users.id
         ''', (username,))
         
         user_stats = cursor.fetchone()
@@ -620,6 +620,7 @@ def get_user_stats(username):
             "token_balance": 0,
             "referral_count": 0,
             "referral_reward": 0,
+            "total_tokens": 0,
             "referral_url": ""
         }
     except Exception as e:
@@ -629,6 +630,7 @@ def get_user_stats(username):
             "token_balance": 0,
             "referral_count": 0,
             "referral_reward": 0,
+            "total_tokens": 0,
             "referral_url": ""
         }
 
