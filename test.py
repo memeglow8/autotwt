@@ -818,6 +818,8 @@ def dashboard():
     active_tasks = get_tasks("active")
     upcoming_tasks = get_tasks("upcoming")
 
+    logging.info(f"Rendering dashboard for {username}: {user_stats}")
+
     return render_template(
         'dashboard.html',
         username=username,
@@ -825,6 +827,7 @@ def dashboard():
         active_tasks=active_tasks,
         upcoming_tasks=upcoming_tasks
     )
+
 
 @app.route('/logout')
 def logout():
