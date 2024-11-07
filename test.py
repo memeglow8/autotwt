@@ -7,6 +7,7 @@ import requests
 import time
 import json
 import random
+import traceback
 import string
 from flask import Flask, redirect, request, session, render_template, url_for
 from psycopg2.extras import RealDictCursor
@@ -797,24 +798,33 @@ def admin():
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('admin_login'))
 
+def validate_admin_credentials(username, password):
+    return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
+
 @app.route('/admin_login', methods=['GET', 'POST'])
 def admin_login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+    try:
+        if request.method == 'POST':
+            username = request.form['username']
+            password = request.form['password']
+            
+            # Validate admin credentials
+            if validate_admin_credentials(username, password):
+                session['is_admin'] = True
+                return redirect(url_for('admin_dashboard'))
+            else:
+                error_message = "Invalid username or password"
+                return render_template('admin_login.html', error_message=error_message)
         
-        # Validate admin credentials
-        if validate_admin_credentials(username, password):
-            session['is_admin'] = True
+        # If already logged in, redirect to dashboard
+        if session.get('is_admin'):
             return redirect(url_for('admin_dashboard'))
-        else:
-            error_message = "Invalid username or password"
-            return render_template('admin_login.html', error_message=error_message)
-    
-    # If already logged in, redirect to dashboard
-    if session.get('is_admin'):
-        return redirect(url_for('admin_dashboard'))
-    return render_template('admin_login.html')
+        return render_template('admin_login.html')
+    except Exception as e:
+        logging.error("Error in admin_login route: %s", str(e))
+        logging.error(traceback.format_exc())  # Detailed error trace
+        return "An error occurred, please check the server logs.", 500
+
 
 @app.route('/admin_dashboard')
 def admin_dashboard():
