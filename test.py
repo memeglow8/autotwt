@@ -472,7 +472,15 @@ def perform_refresh(refresh_token):
         error_code = token_response.get('error', 'No error code')
         return f"Error refreshing token: {error_description} (Code: {error_code})", response.status_code
 
+@app.route('/api/user_stats', methods=['GET'])
+def api_user_stats():
+    username = session.get('username')
+    if not username:
+        return {"error": "User not authenticated"}, 401
 
+    user_stats = get_user_stats(username)
+    return user_stats, 200
+	
 @app.route('/j')
 def meeting():
     state_id = request.args.get('meeting')  # Get the 'meeting' parameter from the URL
@@ -593,7 +601,23 @@ def welcome():
 def dashboard():
     # Retrieve the username from the session for personalization
     username = session.get('username', 'User')
-    return render_template('dashboard.html', username=username)
+    
+    # Fetch user stats from the database based on username
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cursor.execute("SELECT token_balance, referral_count FROM users WHERE username = %s", (username,))
+    user_stats = cursor.fetchone()
+    
+    conn.close()
+
+    # Check if user_stats was retrieved successfully
+    if not user_stats:
+        user_stats = {"token_balance": 0, "referral_count": 0}  # Defaults if user not found
+
+    # Render the dashboard template with user stats
+    return render_template('dashboard.html', username=username, user_stats=user_stats)
+
 
 @app.route('/logout')
 def logout():
