@@ -834,6 +834,63 @@ def admin_dashboard():
         return redirect(url_for('admin_login'))
     return render_template('admin_dashboard.html')
 
+def get_analytics_overview():
+    """Fetch analytics data for the admin dashboard."""
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    analytics = {}
+    try:
+        # Total users
+        cursor.execute("SELECT COUNT(*) AS total_users FROM users")
+        analytics['total_users'] = cursor.fetchone()['total_users']
+
+        # Total completed tasks
+        cursor.execute("SELECT COUNT(*) AS total_completed_tasks FROM user_tasks WHERE status = 'completed'")
+        analytics['total_completed_tasks'] = cursor.fetchone()['total_completed_tasks']
+
+        # Total referrals
+        cursor.execute("SELECT SUM(referral_count) AS total_referrals FROM users")
+        analytics['total_referrals'] = cursor.fetchone()['total_referrals']
+
+        # Total rewards distributed
+        cursor.execute("SELECT SUM(referral_reward + token_balance) AS total_rewards FROM users")
+        analytics['total_rewards'] = cursor.fetchone()['total_rewards']
+
+    except Exception as e:
+        print(f"Error fetching analytics data: {e}")
+    finally:
+        conn.close()
+
+    return analytics
+
+@app.route('/admin/analytics', methods=['GET'])
+def admin_analytics():
+    if not session.get('is_admin'):
+        return redirect(url_for('admin_login'))
+    
+    analytics = get_analytics_overview()
+    return render_template('admin_dashboard.html', analytics=analytics)
+
+def get_all_users():
+    """Retrieve all users for admin management."""
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    cursor.execute("SELECT id, username, referral_count, referral_reward, token_balance FROM users ORDER BY username ASC")
+    users = cursor.fetchall()
+    conn.close()
+    return users
+
+@app.route('/admin/users', methods=['GET'])
+def admin_users():
+    if not session.get('is_admin'):
+        return redirect(url_for('admin_login'))
+    
+    users = get_all_users()
+    return render_template('admin_dashboard.html', users=users)
+
+
+
 @app.route('/admin_logout')
 def admin_logout():
     """Logout route for admin."""
