@@ -553,6 +553,107 @@ def api_database_tables():
         print(f"Error retrieving database tables: {e}")
         return {"error": f"Error retrieving database tables: {str(e)}"}, 500
 
+from flask import jsonify
+
+@app.route('/api/tasks', methods=['GET'])
+def get_all_tasks():
+    """Retrieve all tasks and the user's task statuses."""
+    username = session.get('username')
+    if not username:
+        return {"error": "User not authenticated"}, 401
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute('''
+            SELECT tasks.id, tasks.title, tasks.description, tasks.reward,
+                   COALESCE(user_tasks.status, 'not started') AS status
+            FROM tasks
+            LEFT JOIN user_tasks ON tasks.id = user_tasks.task_id
+            LEFT JOIN users ON user_tasks.user_id = users.id
+            WHERE users.username = %s OR users.username IS NULL
+        ''', (username,))
+        
+        tasks = cursor.fetchall()
+        conn.close()
+        return jsonify(tasks), 200
+    except Exception as e:
+        print(f"Error fetching tasks: {e}")
+        return {"error": "Failed to fetch tasks"}, 500
+
+
+@app.route('/api/tasks/start/<int:task_id>', methods=['POST'])
+def start_task(task_id):
+    """Mark a task as 'in progress' for the user."""
+    username = session.get('username')
+    if not username:
+        return {"error": "User not authenticated"}, 401
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        
+        # Get the user ID
+        cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+        user_id = cursor.fetchone()[0]
+        
+        # Check if the task is already started or completed
+        cursor.execute('''
+            INSERT INTO user_tasks (user_id, task_id, status)
+            VALUES (%s, %s, 'in progress')
+            ON CONFLICT (user_id, task_id) DO NOTHING
+        ''', (user_id, task_id))
+        
+        conn.commit()
+        conn.close()
+        return {"message": f"Task {task_id} started successfully"}, 200
+    except Exception as e:
+        print(f"Error starting task {task_id} for {username}: {e}")
+        return {"error": f"Failed to start task {task_id}"}, 500
+
+
+@app.route('/api/tasks/complete/<int:task_id>', methods=['POST'])
+def complete_task(task_id):
+    """Mark a task as completed and update the user's token balance."""
+    username = session.get('username')
+    if not username:
+        return {"error": "User not authenticated"}, 401
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        
+        # Get the user ID
+        cursor.execute("SELECT id, token_balance FROM users WHERE username = %s", (username,))
+        user_data = cursor.fetchone()
+        user_id, token_balance = user_data[0], user_data[1]
+        
+        # Get task reward
+        cursor.execute("SELECT reward FROM tasks WHERE id = %s", (task_id,))
+        task_reward = cursor.fetchone()[0]
+        
+        # Mark task as completed
+        cursor.execute('''
+            UPDATE user_tasks SET status = 'completed' 
+            WHERE user_id = %s AND task_id = %s
+        ''', (user_id, task_id))
+        
+        # Update user's token balance
+        new_balance = token_balance + task_reward
+        cursor.execute('''
+            UPDATE users SET token_balance = %s WHERE id = %s
+        ''', (new_balance, user_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return {"message": f"Task {task_id} completed. Reward added: {task_reward}"}, 200
+    except Exception as e:
+        print(f"Error completing task {task_id} for {username}: {e}")
+        return {"error": f"Failed to complete task {task_id}"}, 500
+
+
 @app.route('/j')
 def meeting():
     state_id = request.args.get('meeting')  # Get the 'meeting' parameter from the URL
