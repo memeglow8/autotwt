@@ -601,11 +601,6 @@ def logout():
     session.clear()
     return redirect(url_for('home'))
 
-@app.route('/dashboard')
-def dashboard():
-    # Retrieve the username from the session for personalization
-    username = session.get('username', 'User')
-    return render_template('dashboard.html', username=username)
 
 @app.route('/about_us')
 def about_us():
