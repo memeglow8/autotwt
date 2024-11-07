@@ -797,30 +797,24 @@ def admin():
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('admin_login'))
 
-@app.route('/admin_login', methods=['GET', 'POST'])
-def admin_login():
-    """Admin login route."""
-    # Check if the admin is already logged in
-    if session.get('admin_logged_in'):
-        return redirect(url_for('admin_dashboard'))
-    
-    if request.method == 'POST':
-        # Get form data
-        username = request.form.get('username')
-        password = request.form.get('password')
 
-        # Validate credentials
-        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-            # Successful login
-            session['admin_logged_in'] = True
-            flash("Login successful!", "success")
+@app.route('/admin', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        # Assuming validate_admin_credentials is your validation function
+        if validate_admin_credentials(username, password):
+            session['is_admin'] = True
             return redirect(url_for('admin_dashboard'))
         else:
-            # Failed login
-            flash("Invalid credentials. Please try again.", "danger")
-            return redirect(url_for('admin_login'))
-
-    # Render login page
+            error_message = "Invalid username or password"
+            return render_template('admin_login.html', error_message=error_message)
+    
+    # If the admin is already logged in, redirect to the dashboard
+    if session.get('is_admin'):
+        return redirect(url_for('admin_dashboard'))
     return render_template('admin_login.html')
 
 @app.route('/admin_dashboard')
