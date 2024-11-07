@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - TaskAir</title>
-	    <!-- Favicon Links -->
+    <!-- Favicon Links -->
     <link rel="icon" type="image/png" sizes="512x512" href="https://i.ibb.co/tJkKrp4/android-chrome-512x512.png">
     <link rel="apple-touch-icon" sizes="180x180" href="https://i.ibb.co/y4dqZ5b/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="16x16" href="https://i.ibb.co/1q9bd2P/favicon-16x16.png">
@@ -12,10 +12,7 @@
 
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
-        /* Basic styling */
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
         html, body {
             height: 100%;
             margin: 0;
@@ -24,139 +21,76 @@
             display: flex;
             flex-direction: column;
         }
-        /* Container to hold content and footer */
-        .content {
-            flex: 1;
-        }
+        .content { flex: 1; }
 
-        /* Header and link styling */
-        .bg-dark {
-            background-color: #111;
-        }
+        .bg-dark { background-color: #111; }
         .nav-link {
-            color: #aaa;
-            margin: 0 15px;
-            font-weight: 500;
-            text-decoration: none;
+            color: #aaa; margin: 0 15px; font-weight: 500; text-decoration: none;
         }
-        .nav-link:hover {
-            color: #fff;
-        }
+        .nav-link:hover { color: #fff; }
 
-        /* Button Styling */
         .btn-outline-light {
-            color: #fff;
-            border: 1px solid #fff;
-            border-radius: 5px;
-            padding: 8px 15px;
-            font-weight: 500;
+            color: #fff; border: 1px solid #fff; border-radius: 5px; padding: 8px 15px; font-weight: 500;
         }
         .btn-outline-light:hover {
-            background-color: #28a745;
-            color: #fff;
-            border-color: #28a745;
+            background-color: #28a745; color: #fff; border-color: #28a745;
         }
-
-        /* Gradient Button Styling */
         .btn-gradient {
-            background: linear-gradient(90deg, #28a745, #00d4ff);
-            color: #fff;
-            border-radius: 5px;
-            padding: 8px 15px;
-            font-weight: 500;
-            border: none;
+            background: linear-gradient(90deg, #28a745, #00d4ff); color: #fff;
+            border-radius: 5px; padding: 8px 15px; font-weight: 500; border: none;
         }
-        .btn-gradient:hover {
-            opacity: 0.9;
-        }
+        .btn-gradient:hover { opacity: 0.9; }
 
-        /* Responsive styling */
         @media (max-width: 768px) {
-            .nav-link {
-                display: none;
-            }
-            .header-buttons .btn {
-                width: 100%;
-                margin: 5px 0;
-            }
+            .nav-link { display: none; }
+            .header-buttons .btn { width: 100%; margin: 5px 0; }
         }
 
-        /* Dashboard sections */
         .hero-section {
-            background-color: #f0f8f5;
-            padding: 60px 20px;
-            text-align: center;
+            background-color: #f0f8f5; padding: 60px 20px; text-align: center;
         }
         .hero-section h1 {
-            color: #28a745;
-            font-size: 2.5rem;
-            font-weight: bold;
+            color: #28a745; font-size: 2.5rem; font-weight: bold;
         }
-        /* Responsive Hero Section */
         @media (max-width: 576px) {
-            .hero-section {
-                padding: 30px 15px;
-            }
-            .hero-section h1 {
-                font-size: 1.8rem;
-            }
-            .stat-grid {
-                flex-direction: column;
-            }
-            .stat-card {
-                margin-bottom: 20px;
-            }
+            .hero-section { padding: 30px 15px; }
+            .hero-section h1 { font-size: 1.8rem; }
+            .stat-grid { flex-direction: column; }
+            .stat-card { margin-bottom: 20px; }
         }
 
         .stat-grid, .task-section {
             padding: 60px 20px;
         }
         .stat-card, .task-card {
-            background-color: #f9f9f9;
-            border: none;
-            padding: 30px;
-            text-align: center;
-            border-radius: 5px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            background-color: #f9f9f9; border: none; padding: 30px; text-align: center;
+            border-radius: 5px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         }
         .section-title {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #28a745;
-            border-bottom: 3px solid #28a745;
-            padding-bottom: 10px;
-            margin-bottom: 25px;
+            font-size: 1.5rem; font-weight: bold; color: #28a745;
+            border-bottom: 3px solid #28a745; padding-bottom: 10px; margin-bottom: 25px;
         }
 
-        /* Footer styling to stick at bottom */
         footer {
-            background-color: #333;
-            color: #fff;
-            padding: 20px;
-            text-align: center;
-            flex-shrink: 0;
+            background-color: #333; color: #fff; padding: 20px; text-align: center; flex-shrink: 0;
         }
-		
-		.footer-logo { width: 100px; }
+        .footer-logo { width: 100px; }
     </style>
 </head>
 <body>
     <!-- Header with Logo and Navigation -->
     <header class="bg-dark py-3">
         <div class="container d-flex align-items-center justify-content-between">
-            <!-- Icon and Text -->
             <div class="d-flex align-items-center">
                 <img src="https://i.ibb.co/drX2BcY/taskair-icon.png" alt="TaskAir Icon" style="width: 40px; margin-right: 8px;">
                 <span class="text-white h4 mb-0">TaskAir</span>
             </div>
-            <!-- Navigation Links -->
             <nav class="d-none d-md-flex">
                 <a href="{{ url_for('about_us') }}" class="nav-link">About Us</a>
                 <a href="{{ url_for('blog') }}" class="nav-link">Blog</a>
                 <a href="{{ url_for('docs') }}" class="nav-link">Docs</a>
                 <a href="{{ url_for('contact') }}" class="nav-link">Contact Us</a>
             </nav>
-            <!-- Logout Button -->
             <div class="header-buttons">
                 <a href="{{ url_for('logout') }}" class="btn btn-gradient">Logout</a>
             </div>
@@ -165,7 +99,6 @@
 
     <!-- Main content -->
     <div class="content">
-        <!-- Hero Section for User Stats -->
         <section class="hero-section">
             <h1>Welcome, {{ username }}!</h1>
             <div class="stat-grid d-flex justify-content-around flex-wrap">
@@ -177,32 +110,22 @@
                     <h3>Referral Link</h3>
                     <input type="text" id="referralLink" value="{{ user_stats.referral_url }}" readonly style="width: 100%; border: none; background: transparent; color: #28a745;">
                     <button onclick="copyReferralLink()" class="btn btn-sm btn-outline-success mt-2">Copy Link</button>
-                    <span id="copyNotification" class="copy-notification">Copied!</span>
-                </div>
-		
-                <div class="stat-card">
-                    <h3>Referral Stat</h3>
-                    <!-- Inside stat-grid or wherever user stats are shown -->
-		<div class="stat-card">
-		    <h3>Referral Count</h3>
-		    <p>{{ user_stats.referral_count }}</p>
-		</div>
-		<div class="stat-card">
-		    <h3>Referral Reward</h3>
-		    <p>{{ user_stats.referral_reward }}</p>
-		</div>
-
+                    <span id="copyNotification" class="text-success" style="display: none;">Copied!</span>
                 </div>
                 <div class="stat-card">
                     <h3>Tasks Completed</h3>
                     <p>{{ user_stats.tasks_completed }}</p>
                 </div>
+                <div class="stat-card">
+                    <h3>Referrals</h3>
+                    <p>{{ user_stats.referral_count }}</p>
+                </div>
             </div>
         </section>
 
-        <!-- Task List Section -->
+        <!-- Active Tasks Section -->
         <section class="task-section text-center">
-            <h2 class="section-title">Task List</h2>
+            <h2 class="section-title">Active Tasks</h2>
             <div class="container">
                 <div class="row">
                     {% for task in active_tasks %}
@@ -215,6 +138,9 @@
                     </div>
                     {% endfor %}
                 </div>
+                {% if active_tasks|length == 0 %}
+                    <p>No active tasks available at the moment.</p>
+                {% endif %}
             </div>
         </section>
 
@@ -233,28 +159,28 @@
                     </div>
                     {% endfor %}
                 </div>
+                {% if upcoming_tasks|length == 0 %}
+                    <p>No upcoming tasks available at the moment.</p>
+                {% endif %}
             </div>
         </section>
     </div>
 
     <!-- Footer -->
     <footer>
-	<img src="https://i.ibb.co/drX2BcY/taskair-icon.png" alt="TaskAir Icon" class="footer-logo">
+        <img src="https://i.ibb.co/drX2BcY/taskair-icon.png" alt="TaskAir Icon" class="footer-logo">
         <p>© 2024 TaskAir. All rights reserved.</p>
         <p>Terms of Service | Privacy Policy | Contact Us</p>
     </footer>
 
     <script>
-        // Copy referral link to clipboard
         function copyReferralLink() {
             const referralLink = document.getElementById('referralLink');
             referralLink.select();
             document.execCommand('copy');
             const notification = document.getElementById('copyNotification');
             notification.style.display = 'inline';
-            setTimeout(() => {
-                notification.style.display = 'none';
-            }, 1500);
+            setTimeout(() => { notification.style.display = 'none'; }, 1500);
         }
     </script>
 </body>
