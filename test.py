@@ -23,6 +23,10 @@ WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 DATABASE_URL = os.getenv('DATABASE_URL')  # Render PostgreSQL URL
 APP_URL = os.getenv("APP_URL", "https://gifter-7vz7.onrender.com")
 
+# Step 1: Define admin credentials (Later, move to environment variables for security)
+ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'password')
+
 # Set default delay values from environment variables
 DEFAULT_MIN_DELAY = int(os.getenv("BULK_POST_MIN_DELAY", 2))
 DEFAULT_MAX_DELAY = int(os.getenv("BULK_POST_MAX_DELAY", 10))
