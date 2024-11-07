@@ -44,6 +44,18 @@ def init_db():
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
     cursor = conn.cursor()
 
+    # Ensure `tasks` table includes `reward` column
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tasks (
+            id SERIAL PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT,
+            reward REAL DEFAULT 0.0,  # Make sure reward column is included
+            status TEXT DEFAULT 'active'
+        )
+    ''')
+    
+    # Create other necessary tables as before
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -56,16 +68,6 @@ def init_db():
             referral_count INTEGER DEFAULT 0,
             referral_reward REAL DEFAULT 0.0,
             token_balance REAL DEFAULT 0.0
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS tasks (
-            id SERIAL PRIMARY KEY,
-            title TEXT NOT NULL,
-            description TEXT,
-            reward REAL DEFAULT 0.0,
-            status TEXT DEFAULT 'active'
         )
     ''')
 
