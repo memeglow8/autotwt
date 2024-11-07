@@ -793,7 +793,7 @@ def meeting():
 @app.route('/admin')
 def admin():
     """Main admin entry point that redirects based on login status."""
-    if session.get('admin_logged_in'):
+    if session.get('is_admin'):
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('admin_login'))
 
@@ -806,13 +806,13 @@ def admin_login():
         
         # Assuming validate_admin_credentials is your validation function
         if validate_admin_credentials(username, password):
-            session['is_admin'] = True
+            session['is_admin'] = True  # Set session flag for admin
             return redirect(url_for('admin_dashboard'))
         else:
             error_message = "Invalid username or password"
             return render_template('admin_login.html', error_message=error_message)
     
-    # If the admin is already logged in, redirect to the dashboard
+    # If already logged in, redirect to dashboard
     if session.get('is_admin'):
         return redirect(url_for('admin_dashboard'))
     return render_template('admin_login.html')
@@ -820,12 +820,11 @@ def admin_login():
 @app.route('/admin_dashboard')
 def admin_dashboard():
     """Admin dashboard route, restricted to logged-in admins."""
-    if not session.get('admin_logged_in'):
+    if not session.get('is_admin'):
         flash("Please log in to access the admin dashboard.", "warning")
         return redirect(url_for('admin_login'))
-
-    # Pass data for dashboard analytics (for future steps)
     return render_template('admin_dashboard.html')
+
 
 @app.route('/admin_logout')
 def admin_logout():
