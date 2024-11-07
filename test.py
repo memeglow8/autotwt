@@ -28,22 +28,52 @@ app.secret_key = os.urandom(24)
 BACKUP_FILE = 'tokens_backup.txt'
 
 # Initialize PostgreSQL database
+# Updated init_db function to include referral and task tables
+
+# Initialize PostgreSQL database
 def init_db():
+    """Sets up the required tables in the database if they don't exist."""
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
     cursor = conn.cursor()
+
+    # Users table with referral and balance fields
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS tokens (
+        CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
-            access_token TEXT NOT NULL,
+            username TEXT NOT NULL UNIQUE,
+            access_token TEXT,
             refresh_token TEXT,
-            username TEXT NOT NULL
+            referral_code TEXT UNIQUE,
+            referred_by TEXT,
+            referral_count INTEGER DEFAULT 0,
+            token_balance INTEGER DEFAULT 0
         )
     ''')
+
+    # Tasks table to define tasks available to users
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tasks (
+            id SERIAL PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT,
+            reward INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'active'
+        )
+    ''')
+
+    # User tasks table to track each user's task completion
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_tasks (
+            user_id INTEGER REFERENCES users(id),
+            task_id INTEGER REFERENCES tasks(id),
+            status TEXT DEFAULT 'incomplete',
+            PRIMARY KEY (user_id, task_id)
+        )
+    ''')
+
     conn.commit()
     conn.close()
-
-init_db()  # Ensure the database is initialized when the app starts
-
+    
 def store_token(access_token, refresh_token, username):
     print("Storing token in the database...")
 
@@ -578,9 +608,40 @@ def active():
     # Retrieve the username from the session and pass it to the template
     username = session.get('username', 'User')
     return render_template('active.html', username=username)
+    
+def create_sample_tasks():
+    """Insert sample tasks into the tasks table if it's empty."""
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+
+        # Check if tasks are already added
+        cursor.execute('SELECT COUNT(*) FROM tasks')
+        task_count = cursor.fetchone()[0]
+
+        if task_count == 0:
+            sample_tasks = [
+                ('Complete Profile Setup', 'Finish setting up your profile to earn tokens', 50),
+                ('Share Your Referral Link', 'Invite others using your referral link', 100),
+                ('Complete a Survey', 'Complete a survey on Web3 topics', 70)
+            ]
+            for title, description, reward in sample_tasks:
+                cursor.execute('''
+                    INSERT INTO tasks (title, description, reward)
+                    VALUES (%s, %s, %s)
+                ''', (title, description, reward))
+            conn.commit()
+            print("Sample tasks created successfully.")
+        else:
+            print("Sample tasks already exist in the database.")
+
+        conn.close()
+    except Exception as e:
+        print(f"Error creating sample tasks: {e}")
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     send_startup_message()
-    restore_from_backup()
+    init_db()            # Initialize database with necessary tables
+    create_sample_tasks()  # Populate tasks if table is empty
     app.run(host='0.0.0.0', port=port)
