@@ -819,7 +819,22 @@ def admin_login():
     # Render login page
     return render_template('admin_login.html')
 
+@app.route('/admin_dashboard')
+def admin_dashboard():
+    """Admin dashboard route, restricted to logged-in admins."""
+    if not session.get('admin_logged_in'):
+        flash("Please log in to access the admin dashboard.", "warning")
+        return redirect(url_for('admin_login'))
 
+    # Pass data for dashboard analytics (for future steps)
+    return render_template('admin_dashboard.html')
+
+@app.route('/admin_logout')
+def admin_logout():
+    """Logout route for admin."""
+    session.pop('admin_logged_in', None)
+    flash("You have been logged out.", "info")
+    return redirect(url_for('admin_login'))
 
 @app.route('/welcome')
 def welcome():
