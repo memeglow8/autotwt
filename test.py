@@ -50,7 +50,7 @@ def init_db():
             id SERIAL PRIMARY KEY,
             title TEXT NOT NULL,
             description TEXT,
-            reward REAL DEFAULT 0.0,  # Make sure reward column is included
+            reward REAL DEFAULT 0.0,
             status TEXT DEFAULT 'active'
         )
     ''')
