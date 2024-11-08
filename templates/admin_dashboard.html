@@ -294,7 +294,7 @@
         });
     }
 
-    // Task Management Functions
+    // View Task
     function viewTask(taskId, title, description, reward) {
         const modalHtml = `
             <div id="viewTaskModal" class="modal fade" tabindex="-1">
@@ -321,6 +321,7 @@
         $("#viewTaskModal").modal("show");
     }
 
+    // Edit Task
     function editTask(taskId, title, description, reward) {
         const modalHtml = `
             <div id="editTaskModal" class="modal fade" tabindex="-1">
@@ -359,6 +360,7 @@
         $("#editTaskModal").modal("show");
     }
 
+    // Update Task
     function updateTask(taskId) {
         const updatedTask = {
             title: $("#editTaskTitle").val(),
@@ -382,6 +384,7 @@
         });
     }
 
+    // Confirm Delete Task
     function confirmDeleteTask(taskId) {
         const modalHtml = `
             <div id="deleteTaskModal" class="modal fade" tabindex="-1">
@@ -407,6 +410,7 @@
         $("#deleteTaskModal").modal("show");
     }
 
+    // Delete Task
     function deleteTask(taskId) {
         $.ajax({
             url: `/api/tasks/${taskId}`,
@@ -418,6 +422,77 @@
             },
             error: function () {
                 alert("Failed to delete task.");
+            }
+        });
+    }
+
+    // Add Task
+    function openAddTaskModal() {
+        const modalHtml = `
+            <div id="addTaskModal" class="modal fade" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Add New Task</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <form>
+                                <div class="form-group">
+                                    <label for="taskTitle">Title</label>
+                                    <input type="text" class="form-control" id="taskTitle" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="taskDescription">Description</label>
+                                    <textarea class="form-control" id="taskDescription" required></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="taskReward">Reward</label>
+                                    <input type="number" class="form-control" id="taskReward" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="taskStatus">Status</label>
+                                    <select id="taskStatus" class="form-control" required>
+                                        <option value="active">Active</option>
+                                        <option value="upcoming">Upcoming</option>
+                                    </select>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-primary" onclick="submitTask()">Add Task</button>
+                            <button class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        modalContainer.innerHTML = modalHtml;
+        $("#addTaskModal").modal("show");
+    }
+
+    // Submit Task
+    function submitTask() {
+        const newTask = {
+            title: $("#taskTitle").val(),
+            description: $("#taskDescription").val(),
+            reward: $("#taskReward").val(),
+            status: $("#taskStatus").val()
+        };
+
+        $.ajax({
+            url: "/api/add_task",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify(newTask),
+            success: function () {
+                alert("Task added successfully.");
+                $("#addTaskModal").modal("hide");
+                location.reload();
+            },
+            error: function () {
+                alert("Failed to add task.");
             }
         });
     }
