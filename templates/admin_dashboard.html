@@ -322,7 +322,7 @@
     }
 
     // Edit Task
-    function editTask(taskId, title, description, reward) {
+    function editTask(taskId, title, description, reward, status) {
         const modalHtml = `
             <div id="editTaskModal" class="modal fade" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered">
@@ -347,6 +347,13 @@
                                     <label for="editTaskReward">Reward</label>
                                     <input type="number" class="form-control" id="editTaskReward" value="${reward}" required>
                                 </div>
+                                <div class="form-group">
+                                    <label for="editTaskStatus">Status</label>
+                                    <select id="editTaskStatus" class="form-control" required>
+                                        <option value="active" ${status === "active" ? "selected" : ""}>Active</option>
+                                        <option value="upcoming" ${status === "upcoming" ? "selected" : ""}>Upcoming</option>
+                                    </select>
+                                </div>
                             </form>
                         </div>
                         <div class="modal-footer">
@@ -360,12 +367,12 @@
         $("#editTaskModal").modal("show");
     }
 
-    // Update Task
     function updateTask(taskId) {
         const updatedTask = {
             title: $("#editTaskTitle").val(),
             description: $("#editTaskDescription").val(),
-            reward: $("#editTaskReward").val()
+            reward: $("#editTaskReward").val(),
+            status: $("#editTaskStatus").val()
         };
 
         $.ajax({
