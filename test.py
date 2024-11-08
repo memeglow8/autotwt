@@ -986,25 +986,31 @@ def edit_task(task_id):
     """Update a specific task."""
     if not session.get('is_admin'):
         return {"error": "Unauthorized"}, 401
+
     data = request.get_json()
     title = data.get("title")
     description = data.get("description")
     reward = data.get("reward")
-    
+    status = data.get("status")  # New field for task status
+
+    if not title or not reward or not status:
+        return {"error": "Title, reward, and status are required fields."}, 400
+
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE tasks
-            SET title = %s, description = %s, reward = %s
+            SET title = %s, description = %s, reward = %s, status = %s
             WHERE id = %s
-        ''', (title, description, reward, task_id))
+        ''', (title, description, reward, status, task_id))
         conn.commit()
         conn.close()
         return {"message": "Task updated successfully"}, 200
     except Exception as e:
         logging.error(f"Error editing task: {e}")
         return {"error": "Failed to edit task"}, 500
+
 
 @app.route('/api/tasks/<int:task_id>', methods=['GET'])
 def view_task(task_id):
