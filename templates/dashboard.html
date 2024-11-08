@@ -185,47 +185,52 @@
             setTimeout(() => { notification.style.display = 'none'; }, 1500);
         }
     </script>
-<!-- Modal Container -->
-<div id="dynamicTaskModal"></div>
+    <!-- Modal Container -->
+    <div id="dynamicTaskModal"></div>
 
-<script>
-    function viewTask(taskId) {
-        // Fetch task details
-        $.ajax({
-            url: `/api/tasks/${taskId}`,
-            type: "GET",
-            success: function (response) {
-                const modalHtml = `
-                    <div id="viewTaskModal" class="modal fade" tabindex="-1">
-                        <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title">Task Details</h5>
-                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                        <span aria-hidden="true">&times;</span>
-                                    </button>
-                                </div>
-                                <div class="modal-body">
-                                    <p><strong>Title:</strong> ${response.title}</p>
-                                    <p><strong>Description:</strong> ${response.description}</p>
-                                    <p><strong>Reward:</strong> ${response.reward}</p>
-                                    <p><strong>Status:</strong> ${response.status}</p>
-                                </div>
-                                <div class="modal-footer">
-                                    <button class="btn btn-secondary" data-dismiss="modal">Close</button>
+    <!-- jQuery (required for $ function) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Bootstrap JS (for modals) -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <!-- Your Script -->
+    <script>
+        function viewTask(taskId) {
+            // Fetch task details
+            $.ajax({
+                url: `/api/tasks/${taskId}`,
+                type: "GET",
+                success: function (response) {
+                    const modalHtml = `
+                        <div id="viewTaskModal" class="modal fade" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Task Details</h5>
+                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                            <span aria-hidden="true">&times;</span>
+                                        </button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p><strong>Title:</strong> ${response.title}</p>
+                                        <p><strong>Description:</strong> ${response.description}</p>
+                                        <p><strong>Reward:</strong> ${response.reward}</p>
+                                        <p><strong>Status:</strong> ${response.status}</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>`;
-                $("#dynamicTaskModal").html(modalHtml);
-                $("#viewTaskModal").modal("show");
-            },
-            error: function () {
-                alert("Failed to retrieve task details.");
-            }
-        });
-    }
-</script>
+                        </div>`;
+                    $("#dynamicTaskModal").html(modalHtml);
+                    $("#viewTaskModal").modal("show");
+                },
+                error: function () {
+                    alert("Failed to retrieve task details.");
+                }
+            });
+        }
+    </script>
 
 </body>
 </html>
