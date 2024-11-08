@@ -669,16 +669,17 @@ def add_task():
     title = data.get('title')
     description = data.get('description')
     reward = data.get('reward')
+    status = data.get('status', 'active')  # Default to 'active' if not provided
 
-    if not title or not reward:
-        return {"error": "Title and reward are required fields"}, 400
+    if not title or not reward or not status:
+        return {"error": "Title, reward, and status are required fields"}, 400
 
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO tasks (title, description, reward) VALUES (%s, %s, %s)",
-            (title, description, reward)
+            "INSERT INTO tasks (title, description, reward, status) VALUES (%s, %s, %s, %s)",
+            (title, description, reward, status)
         )
         conn.commit()
         conn.close()
