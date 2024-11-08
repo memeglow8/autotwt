@@ -8,7 +8,6 @@
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
-        /* Custom Styles */
         body {
             font-family: Arial, sans-serif;
         }
@@ -34,29 +33,11 @@
             color: #fff;
         }
 
-        .bg-dark {
-            background-color: #111;
-        }
-
-        .nav-link {
-            color: #aaa;
-            margin: 0 15px;
-            font-weight: 500;
-        }
-
-        .nav-link:hover {
-            color: #fff;
-        }
-
         .footer {
             background-color: #333;
             color: #fff;
             padding: 30px 20px;
             text-align: center;
-        }
-
-        .footer-logo {
-            width: 100px;
         }
     </style>
 </head>
@@ -92,21 +73,8 @@
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for user in users %}
-                    <tr>
-                        <td>{{ user.id }}</td>
-                        <td>{{ user.username }}</td>
-                        <td><span class="badge badge-success">{{ user.status }}</span></td>
-                        <td>{{ user.referral_count }}</td>
-                        <td>{{ user.token_balance }}</td>
-                        <td>
-                            <button class="btn btn-sm btn-info" onclick="viewUser({{ user.id }})">View</button>
-                            <button class="btn btn-sm btn-warning" onclick="editUser({{ user.id }}, '{{ user.username }}', {{ user.referral_count }}, {{ user.token_balance }})">Edit</button>
-                            <button class="btn btn-sm btn-danger" onclick="confirmDeleteUser({{ user.id }})">Delete</button>
-                        </td>
-                    </tr>
-                    {% endfor %}
+                <tbody id="userTable">
+                    <!-- Dynamic user rows will be added here -->
                 </tbody>
             </table>
         </div>
@@ -114,7 +82,7 @@
         <!-- Task Management Section -->
         <div class="admin-section">
             <h2>Task Management</h2>
-            <button class="btn btn-gradient mb-3" onclick="openAddTaskModal()">Add Task</button>
+            <button class="btn btn-gradient mb-3" data-toggle="modal" data-target="#addTaskModal">Add Task</button>
             <table class="table table-striped table-responsive-md">
                 <thead class="thead-dark">
                     <tr>
@@ -126,21 +94,8 @@
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for task in tasks %}
-                    <tr>
-                        <td>{{ task.id }}</td>
-                        <td>{{ task.title }}</td>
-                        <td>{{ task.description }}</td>
-                        <td>{{ task.reward }}</td>
-                        <td>{{ task.status }}</td>
-                        <td>
-                            <button class="btn btn-sm btn-info" onclick="viewTask({{ task.id }})">View</button>
-                            <button class="btn btn-sm btn-warning" onclick="editTask({{ task.id }}, '{{ task.title }}', '{{ task.description }}', {{ task.reward }})">Edit</button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteTask({{ task.id }})">Delete</button>
-                        </td>
-                    </tr>
-                    {% endfor %}
+                <tbody id="taskTable">
+                    <!-- Dynamic task rows will be added here -->
                 </tbody>
             </table>
         </div>
@@ -151,16 +106,113 @@
         <p>© 2024 TaskAir. All rights reserved.</p>
     </footer>
 
-    <!-- Bootstrap and jQuery scripts -->
+    <!-- Add Task Modal -->
+    <div class="modal fade" id="addTaskModal" tabindex="-1" aria-labelledby="addTaskModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addTaskModalLabel">Add New Task</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="addTaskForm">
+                        <div class="form-group">
+                            <label for="taskTitle">Title</label>
+                            <input type="text" class="form-control" id="taskTitle" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="taskDescription">Description</label>
+                            <textarea class="form-control" id="taskDescription" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="taskReward">Reward</label>
+                            <input type="number" class="form-control" id="taskReward" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="submitTask()">Add Task</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Dependencies -->
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <script>
+    <!-- Custom Script -->
+<script>
+    $(document).ready(function () {
+        // Load Users
+        function loadUsers() {
+            $.ajax({
+                url: "/api/users",
+                type: "GET",
+                success: function (data) {
+                    const userTable = $("#userTable");
+                    userTable.empty();
+                    data.forEach(user => {
+                        userTable.append(`
+                            <tr>
+                                <td>${user.id}</td>
+                                <td>${user.username}</td>
+                                <td><span class="badge badge-success">${user.status}</span></td>
+                                <td>${user.referral_count}</td>
+                                <td>${user.token_balance}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-info" onclick="viewUser(${user.id})">View</button>
+                                    <button class="btn btn-sm btn-warning" onclick="editUser(${user.id}, '${user.username}', ${user.referral_count}, ${user.token_balance})">Edit</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteUser(${user.id})">Delete</button>
+                                </td>
+                            </tr>
+                        `);
+                    });
+                },
+                error: function () {
+                    alert("Failed to load users.");
+                }
+            });
+        }
+
+        // Load Tasks
+        function loadTasks() {
+            $.ajax({
+                url: "/api/tasks",
+                type: "GET",
+                success: function (data) {
+                    const taskTable = $("#taskTable");
+                    taskTable.empty();
+                    data.forEach(task => {
+                        taskTable.append(`
+                            <tr>
+                                <td>${task.id}</td>
+                                <td>${task.title}</td>
+                                <td>${task.description}</td>
+                                <td>${task.reward}</td>
+                                <td>${task.status}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-info" onclick="viewTask(${task.id})">View</button>
+                                    <button class="btn btn-sm btn-warning" onclick="editTask(${task.id}, '${task.title}', '${task.description}', ${task.reward})">Edit</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteTask(${task.id})">Delete</button>
+                                </td>
+                            </tr>
+                        `);
+                    });
+                },
+                error: function () {
+                    alert("Failed to load tasks.");
+                }
+            });
+        }
+
         // View User
-        function viewUser(userId) {
+        window.viewUser = function (userId) {
             $.ajax({
                 url: `/api/users/${userId}`,
-                type: 'GET',
+                type: "GET",
                 success: function (response) {
                     alert(`User ID: ${response.id}\nUsername: ${response.username}\nReferral Count: ${response.referral_count}\nToken Balance: ${response.token_balance}`);
                 },
@@ -168,10 +220,10 @@
                     alert("Failed to retrieve user details.");
                 }
             });
-        }
+        };
 
         // Edit User
-        function editUser(userId, username, referralCount, tokenBalance) {
+        window.editUser = function (userId, username, referralCount, tokenBalance) {
             const updatedUser = {
                 username: prompt("Edit Username:", username),
                 referral_count: prompt("Edit Referral Count:", referralCount),
@@ -180,138 +232,106 @@
 
             $.ajax({
                 url: `/api/users/${userId}`,
-                type: 'PUT',
-                contentType: 'application/json',
+                type: "PUT",
+                contentType: "application/json",
                 data: JSON.stringify(updatedUser),
                 success: function () {
                     alert("User updated successfully.");
-                    location.reload();
+                    loadUsers();
                 },
                 error: function () {
                     alert("Failed to update user.");
                 }
             });
-        }
+        };
 
         // Delete User
-        function confirmDeleteUser(userId) {
+        window.deleteUser = function (userId) {
             if (confirm("Are you sure you want to delete this user?")) {
                 $.ajax({
                     url: `/api/users/${userId}`,
-                    type: 'DELETE',
+                    type: "DELETE",
                     success: function () {
                         alert("User deleted successfully.");
-                        location.reload();
+                        loadUsers();
                     },
                     error: function () {
                         alert("Failed to delete user.");
                     }
                 });
             }
-        }
+        };
 
-        // View Task
-        function viewTask(taskId) {
+        // Add Task
+        window.submitTask = function () {
+            const taskData = {
+                title: $("#taskTitle").val(),
+                description: $("#taskDescription").val(),
+                reward: $("#taskReward").val(),
+            };
+
             $.ajax({
-                url: `/api/tasks/${taskId}`,
-                type: 'GET',
-                success: function (response) {
-                    alert(`Task ID: ${response.id}\nTitle: ${response.title}\nDescription: ${response.description}\nReward: ${response.reward}`);
+                url: "/api/tasks",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify(taskData),
+                success: function () {
+                    alert("Task added successfully.");
+                    $("#addTaskModal").modal("hide");
+                    loadTasks();
                 },
                 error: function () {
-                    alert("Failed to retrieve task details.");
+                    alert("Error adding task.");
                 }
             });
-        }
+        };
 
         // Edit Task
-        function editTask(taskId, title, description, reward) {
+        window.editTask = function (taskId, title, description, reward) {
             const updatedTask = {
                 title: prompt("Edit Task Title:", title),
                 description: prompt("Edit Task Description:", description),
-                reward: prompt("Edit Task Reward:", reward)
+                reward: prompt("Edit Task Reward:", reward),
             };
 
             $.ajax({
                 url: `/api/tasks/${taskId}`,
-                type: 'PUT',
-                contentType: 'application/json',
+                type: "PUT",
+                contentType: "application/json",
                 data: JSON.stringify(updatedTask),
                 success: function () {
                     alert("Task updated successfully.");
-                    location.reload();
+                    loadTasks();
                 },
                 error: function () {
                     alert("Failed to update task.");
                 }
             });
-        }
+        };
 
         // Delete Task
-        function deleteTask(taskId) {
+        window.deleteTask = function (taskId) {
             if (confirm("Are you sure you want to delete this task?")) {
                 $.ajax({
                     url: `/api/tasks/${taskId}`,
-                    type: 'DELETE',
+                    type: "DELETE",
                     success: function () {
                         alert("Task deleted successfully.");
-                        location.reload();
+                        loadTasks();
                     },
                     error: function () {
                         alert("Failed to delete task.");
                     }
                 });
             }
-        }
+        };
 
-        // Add Task
-        function openAddTaskModal() {
-            const taskFormHtml = `
-                <div id="addTaskModal" class="modal fade" tabindex="-1">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Add New Task</h5>
-                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                    <span aria-hidden="true">&times;</span>
-                                </button>
-                            </div>
-                            <div class="modal-body">
-                                <form id="addTaskForm">
-                                    <div class="form-group">
-                                        <label for="taskTitle">Title</label>
-                                        <input type="text" class="form-control" id="taskTitle" required>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="taskDescription">Description</label>
-                                        <textarea class="form-control" id="taskDescription" required></textarea>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="taskReward">Reward</label>
-                                        <input type="number" class="form-control" id="taskReward" required>
-                                    </div>
-                                </form>
-                            </div>
-                            <div class="modal-footer">
-                                <button class="btn btn-primary" onclick="submitTask()">Add</button>
-                                <button class="btn btn-outline-secondary" data-dismiss="modal">Close</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>`;
-            $(document.body).append(taskFormHtml);
-            $(`#addTaskModal`).modal("show");
-        }
+        // Initialize Data
+        loadUsers();
+        loadTasks();
+    });
+</script>
 
-        function submitTask() {
-            const payload = {
-                title: $("#taskTitle").val(),
-                details: $("#taskDetail").val(),
-            };
-
-            $.POST("/api/tasks").then();
-        }
-    </script>
 </body>
 
 </html>
