@@ -1015,18 +1015,25 @@ def edit_task(task_id):
 @app.route('/api/tasks/<int:task_id>', methods=['GET'])
 def view_task(task_id):
     """Retrieve details of a specific task."""
-    if not session.get('is_admin'):
-        return {"error": "Unauthorized"}, 401
+    username = session.get('username')
+    if not username:
+        return {"error": "User not authenticated"}, 401
+
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
+        cursor.execute("SELECT id, title, description, reward, status FROM tasks WHERE id = %s", (task_id,))
         task = cursor.fetchone()
         conn.close()
-        return task, 200
+
+        if task:
+            return jsonify(task), 200
+        else:
+            return {"error": "Task not found"}, 404
     except Exception as e:
-        logging.error(f"Error viewing task: {e}")
-        return {"error": "Failed to view task"}, 500
+        logging.error(f"Error viewing task {task_id}: {e}")
+        return {"error": "Failed to retrieve task details"}, 500
+
 
 
 @app.route('/api/users/<int:user_id>', methods=['GET'])
