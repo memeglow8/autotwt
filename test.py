@@ -980,34 +980,30 @@ def edit_user(user_id):
         logging.error(f"Error updating user: {e}")
         return {"error": "Failed to update user"}, 500
 
-
 @app.route('/api/tasks/<int:task_id>', methods=['PUT'])
 def edit_task(task_id):
-    """Edit task details by ID."""
+    """Update a specific task."""
     if not session.get('is_admin'):
         return {"error": "Unauthorized"}, 401
-    
     data = request.get_json()
-    title = data.get('title')
-    description = data.get('description')
-    reward = data.get('reward')
-    status = data.get('status')
-
+    title = data.get("title")
+    description = data.get("description")
+    reward = data.get("reward")
+    
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE tasks
-            SET title = %s, description = %s, reward = %s, status = %s
+            SET title = %s, description = %s, reward = %s
             WHERE id = %s
-        ''', (title, description, reward, status, task_id))
+        ''', (title, description, reward, task_id))
         conn.commit()
         conn.close()
         return {"message": "Task updated successfully"}, 200
     except Exception as e:
-        logging.error(f"Error updating task: {e}")
-        return {"error": "Failed to update task"}, 500
-
+        logging.error(f"Error editing task: {e}")
+        return {"error": "Failed to edit task"}, 500
 
 @app.route('/api/tasks/<int:task_id>', methods=['GET'])
 def view_task(task_id):
@@ -1024,6 +1020,7 @@ def view_task(task_id):
     except Exception as e:
         logging.error(f"Error viewing task: {e}")
         return {"error": "Failed to view task"}, 500
+
 
 @app.route('/api/users/<int:user_id>', methods=['GET'])
 def view_user(user_id):
@@ -1057,7 +1054,6 @@ def delete_user(user_id):
         logging.error(f"Error deleting user: {e}")
         return {"error": "Failed to delete user"}, 500
 
-
 @app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
 def delete_task(task_id):
     """Delete a task by ID."""
@@ -1073,7 +1069,6 @@ def delete_task(task_id):
     except Exception as e:
         logging.error(f"Error deleting task: {e}")
         return {"error": "Failed to delete task"}, 500
-
 
 def get_all_users():
     """Retrieve all users for admin management."""
