@@ -150,26 +150,29 @@
         </section>
 
 
-        <!-- Upcoming Tasks Section -->
-        <section class="task-section text-center">
-            <h2 class="section-title">Upcoming Tasks</h2>
-            <div class="container">
-                <div class="row">
-                    {% for task in upcoming_tasks %}
-                    <div class="col-md-6 col-lg-4 mb-4">
-                        <div class="task-card">
-                            <h4>{{ task.title }}</h4>
-                            <p>{{ task.description }}</p>
-                            <button class="btn btn-gradient">Learn More</button>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% if upcoming_tasks|length == 0 %}
-                    <p>No upcoming tasks available at the moment.</p>
-                {% endif %}
-            </div>
-        </section>
+	<section class="task-section text-center">
+	    <h2 class="section-title">Upcoming Tasks</h2>
+	    <div class="container">
+	        <div class="row">
+	            {% for task in upcoming_tasks %}
+	            <div class="col-md-6 col-lg-4 mb-4">
+	                <div class="task-card">
+	                    <h4>{{ task.title }}</h4>
+	                    <p>{{ task.description }}</p>
+	                    <button class="btn btn-gradient" 
+	                            onclick="console.log('Upcoming Task ID:', {{ task.id }}); viewTask({{ task.id }})">
+	                        Learn More
+	                    </button>
+	                </div>
+	            </div>
+	            {% endfor %}
+	        </div>
+	        {% if upcoming_tasks|length == 0 %}
+	            <p>No upcoming tasks available at the moment.</p>
+	        {% endif %}
+	    </div>
+	</section>
+
     </div>
 
     <!-- Footer -->
