@@ -128,21 +128,25 @@
         <section class="task-section text-center">
             <h2 class="section-title">Active Tasks</h2>
             <div class="container">
-                <div class="row">
-                    {% for task in active_tasks %}
-                    <div class="col-md-6 col-lg-4 mb-4">
-                        <div class="task-card">
-                            <h4>{{ task.title }}</h4>
-                            <p>{{ task.description }}</p>
-                            <button class="btn btn-gradient" onclick="viewTask({{ task.id }})">View Task</button>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% if active_tasks|length == 0 %}
-                    <p>No active tasks available at the moment.</p>
-                {% endif %}
-            </div>
+			<div class="row">
+				{% for task in active_tasks %}
+				<div class="col-md-6 col-lg-4 mb-4">
+					<div class="task-card">
+						<h4>{{ task.title }}</h4>
+						<p>{{ task.description }}</p>
+						<button class="btn btn-gradient" 
+								onclick="console.log('Active Task ID:', {{ task.id }}); viewTask({{ task.id }})">
+							View Task
+						</button>
+					</div>
+				</div>
+				{% endfor %}
+			</div>
+			{% if active_tasks|length == 0 %}
+				<p>No active tasks available at the moment.</p>
+			{% endif %}
+		</div>
+
         </section>
 
 
@@ -194,42 +198,43 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <!-- Your Script -->
     <script>
-        function viewTask(taskId) {
-            // Fetch task details
-            $.ajax({
-                url: `/api/tasks/${taskId}`,
-                type: "GET",
-                success: function (response) {
-                    const modalHtml = `
-                        <div id="viewTaskModal" class="modal fade" tabindex="-1">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title">Task Details</h5>
-                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                            <span aria-hidden="true">&times;</span>
-                                        </button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <p><strong>Title:</strong> ${response.title}</p>
-                                        <p><strong>Description:</strong> ${response.description}</p>
-                                        <p><strong>Reward:</strong> ${response.reward}</p>
-                                        <p><strong>Status:</strong> ${response.status}</p>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button class="btn btn-secondary" data-dismiss="modal">Close</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>`;
-                    $("#dynamicTaskModal").html(modalHtml);
-                    $("#viewTaskModal").modal("show");
-                },
-                error: function () {
-                    alert("Failed to retrieve task details.");
-                }
-            });
-        }
+	function viewTask(taskId) {
+		console.log("Fetching details for Task ID:", taskId);
+		$.ajax({
+			url: `/api/tasks/${taskId}`,
+			type: "GET",
+			success: function (response) {
+				console.log("Task details retrieved successfully:", response);
+				const modalHtml = `
+					<div id="viewTaskModal" class="modal fade" tabindex="-1">
+						<div class="modal-dialog modal-dialog-centered">
+							<div class="modal-content">
+								<div class="modal-header">
+									<h5 class="modal-title">Task Details</h5>
+									<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+										<span aria-hidden="true">&times;</span>
+									</button>
+								</div>
+								<div class="modal-body">
+									<p><strong>Title:</strong> ${response.title}</p>
+									<p><strong>Description:</strong> ${response.description}</p>
+									<p><strong>Reward:</strong> ${response.reward}</p>
+								</div>
+								<div class="modal-footer">
+									<button class="btn btn-secondary" data-dismiss="modal">Close</button>
+								</div>
+							</div>
+						</div>
+					</div>`;
+				$("#dynamicModals").html(modalHtml);
+				$("#viewTaskModal").modal("show");
+			},
+			error: function (jqXHR, textStatus, errorThrown) {
+				console.error("Failed to fetch task details:", textStatus, errorThrown);
+				alert("Failed to retrieve task details. Please try again later.");
+			}
+		});
+	}
     </script>
 
 </body>
