@@ -322,7 +322,7 @@
     }
 
     // Edit Task
-    function editTask(taskId, title, description, reward, status) {
+    function editTask(taskId, title, description, reward, status, groupIds = "") {
         const modalHtml = `
             <div id="editTaskModal" class="modal fade" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered">
@@ -354,6 +354,11 @@
                                         <option value="upcoming" ${status === "upcoming" ? "selected" : ""}>Upcoming</option>
                                     </select>
                                 </div>
+                                <div class="form-group">
+                                    <label for="editTaskGroupIds">Telegram Group IDs (Comma-Separated)</label>
+                                    <input type="text" class="form-control" id="editTaskGroupIds" value="${groupIds}">
+                                    <small class="form-text text-muted">Leave empty if not a Telegram task.</small>
+                                </div>
                             </form>
                         </div>
                         <div class="modal-footer">
@@ -367,14 +372,18 @@
         $("#editTaskModal").modal("show");
     }
 
+
     function updateTask(taskId) {
         const updatedTask = {
             title: $("#editTaskTitle").val(),
             description: $("#editTaskDescription").val(),
             reward: $("#editTaskReward").val(),
-            status: $("#editTaskStatus").val()
+            status: $("#editTaskStatus").val(),
+            parameters: {
+                group_ids: $("#editTaskGroupIds").val().split(",").map(id => id.trim())
+            }
         };
-
+    
         $.ajax({
             url: `/api/tasks/${taskId}`,
             type: "PUT",
@@ -466,6 +475,11 @@
                                         <option value="upcoming">Upcoming</option>
                                     </select>
                                 </div>
+                                <div class="form-group">
+                                    <label for="taskGroupIds">Telegram Group IDs (Comma-Separated)</label>
+                                    <input type="text" class="form-control" id="taskGroupIds">
+                                    <small class="form-text text-muted">Leave empty if not a Telegram task.</small>
+                                </div>
                             </form>
                         </div>
                         <div class="modal-footer">
@@ -485,9 +499,12 @@
             title: $("#taskTitle").val(),
             description: $("#taskDescription").val(),
             reward: $("#taskReward").val(),
-            status: $("#taskStatus").val()
+            status: $("#taskStatus").val(),
+            parameters: {
+                group_ids: $("#taskGroupIds").val().split(",").map(id => id.trim())
+            }
         };
-
+    
         $.ajax({
             url: "/api/add_task",
             type: "POST",
