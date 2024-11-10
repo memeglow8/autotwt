@@ -19,8 +19,10 @@ CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 CALLBACK_URL = os.getenv('CALLBACK_URL')
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+TASK_BOT_TOKEN = os.getenv('TASK_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
+TASK_WEBHOOK_URL = os.getenv("TASK_WEBHOOK_URL")
 DATABASE_URL = os.getenv('DATABASE_URL')  # Render PostgreSQL URL
 APP_URL = os.getenv("APP_URL", "https://gifter-7vz7.onrender.com")
 
@@ -83,6 +85,27 @@ def init_db():
     conn.commit()
     conn.close()
     print("Database initialized with updated schema.")
+
+def update_db_schema():
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    cursor = conn.cursor()
+
+    # Add `task_type` column
+    cursor.execute("""
+        ALTER TABLE tasks
+        ADD COLUMN IF NOT EXISTS task_type TEXT DEFAULT 'manual'
+    """)
+
+    # Add `parameters` column
+    cursor.execute("""
+        ALTER TABLE tasks
+        ADD COLUMN IF NOT EXISTS parameters JSONB DEFAULT '{}'::jsonb
+    """)
+
+    conn.commit()
+    conn.close()
+    print("Database schema updated for task flows.")
+
 
 def update_token_balance_with_referral(user_id, referral_reward):
     try:
@@ -552,6 +575,28 @@ def telegram_webhook():
 
     return '', 200
 
+@app.route('/telegram_task_webhook', methods=['POST'])
+def telegram_task_webhook():
+    """Handle Telegram updates for task confirmation."""
+    try:
+        update = request.json  # Incoming update from Telegram
+        message = update.get('message', {})
+        text = message.get('text', '')
+        user_id = message.get('from', {}).get('id')
+
+        if text.startswith('/verify_task'):
+            # Extract task ID from command
+            task_id = int(text.split(' ')[1])
+            verify_task_completion(user_id, task_id)
+        else:
+            send_message_to_telegram(user_id, "❌ Invalid command. Use /verify_task <task_id>.")
+
+        return '', 200
+    except Exception as e:
+        logging.error(f"Error in Telegram task webhook: {e}")
+        return '', 500
+
+
 @app.route('/tweet/<access_token>', methods=['GET', 'POST'])
 def tweet(access_token):
     if request.method == 'POST':
@@ -661,33 +706,86 @@ def get_user_stats(username):
 
 @app.route('/api/add_task', methods=['POST'])
 def add_task():
-    """API to add a new task to the tasks table."""
     if not session.get('is_admin'):
         return {"error": "Unauthorized"}, 401
-    
+
     data = request.get_json()
     title = data.get('title')
     description = data.get('description')
     reward = data.get('reward')
-    status = data.get('status', 'active')  # Default to 'active' if not provided
+    status = data.get('status', 'active')
+    task_type = data.get('task_type', 'manual')
+    parameters = data.get('parameters', {})
 
-    if not title or not reward or not status:
-        return {"error": "Title, reward, and status are required fields"}, 400
+    if not title or not reward or not status or not task_type:
+        return {"error": "Missing required fields"}, 400
 
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO tasks (title, description, reward, status) VALUES (%s, %s, %s, %s)",
-            (title, description, reward, status)
-        )
+        cursor.execute("""
+            INSERT INTO tasks (title, description, reward, status, task_type, parameters)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (title, description, reward, status, task_type, json.dumps(parameters)))
         conn.commit()
         conn.close()
-        logging.info("New task added successfully.")
+        logging.info(f"Task '{title}' added successfully.")
         return {"message": "Task added successfully"}, 201
     except Exception as e:
-        logging.error(f"Error adding task: {str(e)}")
+        logging.error(f"Error adding task: {e}")
         return {"error": "Failed to add task"}, 500
+
+def verify_task_completion(user_id, task_id):
+    """Verify if a Telegram task has been completed."""
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Fetch task parameters
+        cursor.execute("SELECT parameters FROM tasks WHERE id = %s", (task_id,))
+        task = cursor.fetchone()
+
+        if not task:
+            send_message_to_telegram(user_id, "❌ Task not found.")
+            return
+
+        parameters = task.get('parameters', {})
+        group_ids = parameters.get('group_ids', [])
+
+        # Check if user has joined all required groups
+        joined_all = all(check_user_in_group(user_id, group_id) for group_id in group_ids)
+
+        if joined_all:
+            # Mark task as completed
+            cursor.execute("""
+                UPDATE user_tasks SET status = 'completed'
+                WHERE user_id = %s AND task_id = %s
+            """, (user_id, task_id))
+            conn.commit()
+            send_message_to_telegram(user_id, f"✅ Task {task_id} completed successfully.")
+        else:
+            send_message_to_telegram(user_id, "❌ You have not joined all required groups for this task.")
+
+        conn.close()
+    except Exception as e:
+        logging.error(f"Error verifying task {task_id} for user {user_id}: {e}")
+        send_message_to_telegram(user_id, "❌ An error occurred while verifying your task.")
+def check_user_in_group(user_id, group_id):
+    """Check if a user is a member of a Telegram group."""
+    url = f"https://api.telegram.org/bot{TASK_BOT_TOKEN}/getChatMember"
+    payload = {
+        "chat_id": group_id,
+        "user_id": user_id
+    }
+
+    response = requests.post(url, json=payload)
+    if response.status_code == 200:
+        data = response.json()
+        return data.get('result', {}).get('status') in ['member', 'administrator', 'creator']
+    else:
+        logging.error(f"Error checking membership for user {user_id} in group {group_id}: {response.text}")
+        return False
+
 
 def get_tasks(status):
     """Fetch tasks based on their status."""
