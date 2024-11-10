@@ -1015,10 +1015,6 @@ def edit_task(task_id):
 @app.route('/api/tasks/<int:task_id>', methods=['GET'])
 def view_task(task_id):
     """Retrieve details of a specific task."""
-    username = session.get('username')
-    if not username:
-        return {"error": "User not authenticated"}, 401
-
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -1033,6 +1029,7 @@ def view_task(task_id):
     except Exception as e:
         logging.error(f"Error viewing task {task_id}: {e}")
         return {"error": "Failed to retrieve task details"}, 500
+
 
 
 
@@ -1143,7 +1140,9 @@ def dashboard():
     active_tasks = get_tasks("active")
     upcoming_tasks = get_tasks("upcoming")
 
-    logging.info(f"Rendering dashboard for {username}: {user_stats}")
+    # Log tasks for debugging
+    logging.info(f"Active Tasks: {active_tasks}")
+    logging.info(f"Upcoming Tasks: {upcoming_tasks}")
 
     return render_template(
         'dashboard.html',
