@@ -589,11 +589,12 @@ def telegram_task_webhook():
             task_id = int(text.split(' ')[1])
             verify_task_completion(user_id, task_id)
         else:
-            send_message_to_telegram(user_id, "❌ Invalid command. Use /verify_task <task_id>.")
-
+            send_message_via_telegram(f"❌ Invalid command from user {user_id}. Use /verify_task <task_id>.")
+        
         return '', 200
     except Exception as e:
         logging.error(f"Error in Telegram task webhook: {e}")
+        send_message_via_telegram(f"❌ Error processing task webhook: {str(e)}")
         return '', 500
 
 
