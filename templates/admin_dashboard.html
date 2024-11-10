@@ -322,7 +322,7 @@
     }
 
     // Edit Task
-    function editTask(taskId, title, description, reward, status, groupIds = "") {
+    function editTask(taskId, title, description, reward, status, taskType = "manual", groupIds = "") {
         const modalHtml = `
             <div id="editTaskModal" class="modal fade" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered">
@@ -355,6 +355,15 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
+                                    <label for="editTaskType">Task Type</label>
+                                    <select id="editTaskType" class="form-control" required>
+                                        <option value="manual" ${taskType === "manual" ? "selected" : ""}>Manual</option>
+                                        <option value="telegram" ${taskType === "telegram" ? "selected" : ""}>Telegram</option>
+                                        <option value="twitter" ${taskType === "twitter" ? "selected" : ""}>Twitter</option>
+                                        <option value="survey" ${taskType === "survey" ? "selected" : ""}>Survey</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
                                     <label for="editTaskGroupIds">Telegram Group IDs (Comma-Separated)</label>
                                     <input type="text" class="form-control" id="editTaskGroupIds" value="${groupIds}">
                                     <small class="form-text text-muted">Leave empty if not a Telegram task.</small>
@@ -379,8 +388,9 @@
             description: $("#editTaskDescription").val(),
             reward: $("#editTaskReward").val(),
             status: $("#editTaskStatus").val(),
+            task_type: $("#editTaskType").val(), // Include task type
             parameters: {
-                group_ids: $("#editTaskGroupIds").val().split(",").map(id => id.trim())
+                group_ids: $("#editTaskGroupIds").val().split(",").map(id => id.trim()) // Ensure proper parameter handling
             }
         };
     
@@ -476,6 +486,15 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
+                                    <label for="taskType">Task Type</label>
+                                    <select id="taskType" class="form-control" required>
+                                        <option value="manual">Manual</option>
+                                        <option value="telegram">Telegram</option>
+                                        <option value="twitter">Twitter</option>
+                                        <option value="survey">Survey</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
                                     <label for="taskGroupIds">Telegram Group IDs (Comma-Separated)</label>
                                     <input type="text" class="form-control" id="taskGroupIds">
                                     <small class="form-text text-muted">Leave empty if not a Telegram task.</small>
@@ -493,6 +512,7 @@
         $("#addTaskModal").modal("show");
     }
 
+
     // Submit Task
     function submitTask() {
         const newTask = {
@@ -500,6 +520,7 @@
             description: $("#taskDescription").val(),
             reward: $("#taskReward").val(),
             status: $("#taskStatus").val(),
+            task_type: $("#taskType").val(),
             parameters: {
                 group_ids: $("#taskGroupIds").val().split(",").map(id => id.trim())
             }
