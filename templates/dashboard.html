@@ -178,7 +178,8 @@
         <p>© 2024 TaskAir. All rights reserved.</p>
         <p>Terms of Service | Privacy Policy | Contact Us</p>
     </footer>
-
+    <!-- Modal Container -->
+    <div id="dynamicTaskModal"></div>
     <script>
         function copyReferralLink() {
             const referralLink = document.getElementById('referralLink');
@@ -189,8 +190,7 @@
             setTimeout(() => { notification.style.display = 'none'; }, 1500);
         }
     </script>
-    <!-- Modal Container -->
-    <div id="dynamicTaskModal"></div>
+
 
     <!-- jQuery (required for $ function) -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -226,7 +226,8 @@
 							</div>
 						</div>
 					</div>`;
-				$("#dynamicModals").html(modalHtml);
+				$("#dynamicTaskModal").html(modalHtml); 
+				// Corrected container ID
 				$("#viewTaskModal").modal("show");
 			},
 			error: function (jqXHR, textStatus, errorThrown) {
@@ -235,6 +236,7 @@
 			}
 		});
 	}
+
     </script>
 
 </body>
