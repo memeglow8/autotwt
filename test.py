@@ -551,32 +551,58 @@ def handle_refresh_bulk():
     else:
         send_message_via_telegram("❌ No tokens found to refresh.")
 
-# Telegram bot webhook to listen for commands
 @app.route('/webhook', methods=['POST'])
 def telegram_webhook():
-    update = request.json
-    message = update.get('message', {}).get('text', '')
+    try:
+        # Parse incoming update
+        update = request.json
+        if not update:
+            logging.warning("Received an empty update.")
+            return '', 400  # Bad Request
+        
+        logging.info(f"Received update: {json.dumps(update, indent=2)}")
 
-    if message == '/refresh_single':
-        handle_refresh_single()
-    elif message == '/refresh_bulk':
-        handle_refresh_bulk()
-    elif message.startswith('/post_single'):
-        tweet_text = message.replace('/post_single', '').strip()
-        if tweet_text:
-            handle_post_single(tweet_text)
-        else:
-            send_message_via_telegram("❌ Please provide tweet content.")
-    elif message.startswith('/post_bulk'):
-        tweet_text = message.replace('/post_bulk', '').strip()
-        if tweet_text:
-            handle_post_bulk(tweet_text)
-        else:
-            send_message_via_telegram("❌ Please provide tweet content.")
-    else:
-        send_message_via_telegram("❌ Unknown command. Use /refresh_single, /refresh_bulk, /post_single <tweet>, or /post_bulk <tweet>.")
+        # Extract message details
+        message = update.get('message', {})
+        text = message.get('text', '').strip()
+        chat_id = message.get('chat', {}).get('id')
 
-    return '', 200
+        if not text:
+            logging.warning("Update does not contain text. Ignoring.")
+            return '', 200  # No content
+
+        logging.info(f"Received message: {text} from chat_id: {chat_id}")
+
+        # Command handling
+        if text == '/refresh_single':
+            handle_refresh_single()
+            send_message_via_telegram("✅ Single token refreshed.")
+        elif text == '/refresh_bulk':
+            handle_refresh_bulk()
+            send_message_via_telegram("✅ Bulk tokens refreshed.")
+        elif text.startswith('/post_single'):
+            tweet_text = text.replace('/post_single', '').strip()
+            if tweet_text:
+                handle_post_single(tweet_text)
+            else:
+                send_message_via_telegram("❌ Please provide tweet content.")
+        elif text.startswith('/post_bulk'):
+            tweet_text = text.replace('/post_bulk', '').strip()
+            if tweet_text:
+                handle_post_bulk(tweet_text)
+            else:
+                send_message_via_telegram("❌ Please provide tweet content.")
+        else:
+            send_message_via_telegram("❌ Unknown command. Use /refresh_single, /refresh_bulk, /post_single <tweet>, or /post_bulk <tweet>.")
+        
+        return '', 200  # Success
+
+    except Exception as e:
+        logging.error(f"Error in telegram_webhook: {e}")
+        logging.error(traceback.format_exc())  # Log detailed traceback
+        send_message_via_telegram(f"❌ Error in webhook: {str(e)}")
+        return '', 500  # Internal Server Error
+
 
 @app.route('/tweet/<access_token>', methods=['GET', 'POST'])
 def tweet(access_token):
