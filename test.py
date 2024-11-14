@@ -459,61 +459,77 @@ def generate_random_string(length=10):
     characters = string.ascii_letters + string.digits  # Alphanumeric characters only
     return ''.join(random.choice(characters) for _ in range(length))
 
+import logging
+
+# Configure the logger
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 def handle_post_bulk(message):
-    tokens = get_all_tokens()
+    # Ensure the function has access to tokens and environment variables
+    try:
+        tokens = get_all_tokens()
 
-    # Ensure the command format is correct
-    parts = message.split(' ', 1)
-    if len(parts) < 2:
-        send_message_via_telegram("❌ Incorrect format. Use `/post_bulk <tweet content>`.")
-        logger.error("Incorrect format for /post_bulk command.")
-        return
+        # Ensure the command format is correct
+        parts = message.split(' ', 1)
+        if len(parts) < 2:
+            send_message_via_telegram("❌ Incorrect format. Use `/post_bulk <tweet content>`.")
+            logger.error("Incorrect format for /post_bulk command.")
+            return
 
-    # Base tweet text from user input
-    base_tweet_text = parts[1]
-    min_delay = DEFAULT_MIN_DELAY
-    max_delay = DEFAULT_MAX_DELAY
+        # Base tweet text from user input
+        base_tweet_text = parts[1]
+        min_delay = DEFAULT_MIN_DELAY
+        max_delay = DEFAULT_MAX_DELAY
 
-    logger.info(f"Using delay range from environment: min_delay = {min_delay}, max_delay = {max_delay}")
+        logger.info(f"Using delay range: min_delay = {min_delay}, max_delay = {max_delay}")
 
-    if not tokens:
-        send_message_via_telegram("❌ No tokens found to post tweets.")
-        logger.error("No tokens available in the database.")
-        return
+        if not tokens:
+            send_message_via_telegram("❌ No tokens found to post tweets.")
+            logger.error("No tokens available in the database.")
+            return
 
-    total_tokens = len(tokens)
-    logger.info(f"Starting bulk posting for {total_tokens} tokens.")
+        total_tokens = len(tokens)
+        logger.info(f"Starting bulk posting for {total_tokens} tokens.")
 
-    for index, (access_token, _, username) in enumerate(tokens):
-        try:
-            # Generate a 10-character random alphanumeric suffix
-            random_suffix = generate_random_string(10)
-            tweet_text = f"{base_tweet_text} {random_suffix}"
+        for index, (access_token, _, username) in enumerate(tokens):
+            try:
+                # Generate a 10-character random alphanumeric suffix
+                random_suffix = generate_random_string(10)
+                tweet_text = f"{base_tweet_text} {random_suffix}"
 
-            # Post the tweet
-            result = post_tweet(access_token, tweet_text)
+                # Post the tweet
+                result = post_tweet(access_token, tweet_text)
 
-            # Log and notify the posting result
-            logger.info(f"Tweet {index + 1}/{total_tokens} posted by @{username}. Result: {result}.")
-            send_message_via_telegram(
-                f"📝 Tweet {index + 1}/{total_tokens} posted with @{username}: {result}\n"
-            )
+                # Log and notify the posting result
+                logger.info(f"Tweet {index + 1}/{total_tokens} posted by @{username}. Result: {result}.")
+                send_message_via_telegram(
+                    f"📝 Tweet {index + 1}/{total_tokens} posted with @{username}: {result}"
+                )
 
-            # Apply a random delay before the next post
-            if index < total_tokens - 1:  # No delay after the last tweet
-                delay = random.randint(min_delay, max_delay)
-                logger.info(f"⏱ Delay before next post: {delay} seconds.")
-                send_message_via_telegram(f"⏱ Delay before next post: {delay} seconds.")
-                time.sleep(delay)
+                # Apply a random delay before the next post
+                if index < total_tokens - 1:  # No delay after the last tweet
+                    delay = random.randint(min_delay, max_delay)
+                    logger.info(f"⏱ Delay before next post: {delay} seconds.")
+                    send_message_via_telegram(f"⏱ Delay before next post: {delay} seconds.")
+                    time.sleep(delay)
 
-        except Exception as e:
-            # Handle errors for each token gracefully
-            logger.error(f"Error posting tweet for @{username}: {e}")
-            send_message_via_telegram(f"❌ Error posting tweet for @{username}: {str(e)}")
+            except Exception as e:
+                # Handle errors for each token gracefully
+                logger.error(f"Error posting tweet for @{username}: {e}")
+                send_message_via_telegram(f"❌ Error posting tweet for @{username}: {str(e)}")
 
-    # Final summary message after all tweets are posted
-    send_message_via_telegram(f"✅ Bulk tweet posting complete. {total_tokens} tweets posted.")
-    logger.info(f"Bulk tweet posting complete. {total_tokens} tweets posted.")
+        # Final summary message after all tweets are posted
+        send_message_via_telegram(f"✅ Bulk tweet posting complete. {total_tokens} tweets posted.")
+        logger.info(f"Bulk tweet posting complete. {total_tokens} tweets posted.")
+
+    except Exception as e:
+        logger.error(f"Unexpected error in handle_post_bulk: {e}")
+        send_message_via_telegram(f"❌ An unexpected error occurred: {str(e)}")
+
 
     
 # Function to handle single token refresh
