@@ -571,6 +571,25 @@ def logout():
     session.clear()
     return redirect(url_for('home'))
 
+@app.route('/about_us')
+def about_us():
+    return render_template('about_us.html')
+
+@app.route('/blog')
+def blog():
+    # Placeholder content for the Blog page
+    return render_template('blog.html')
+
+@app.route('/docs')
+def docs():
+    # Placeholder content for the Documentation page
+    return render_template('docs.html')
+
+@app.route('/contact')
+def contact():
+    # Placeholder content for the Contact Us page
+    return render_template('contact.html')
+
 
 # Route to display active.html
 @app.route('/active')
