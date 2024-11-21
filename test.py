@@ -694,12 +694,10 @@ def get_tasks(status):
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    logging.info(f"Fetching tasks with status: {status}")
-    cursor.execute("SELECT id, title, description FROM tasks WHERE status = %s", (status,))
+    cursor.execute("SELECT title, description FROM tasks WHERE status = %s", (status,))
     tasks = cursor.fetchall()
     conn.close()
     
-    logging.info(f"Tasks retrieved for status '{status}': {tasks}")
     return tasks
 
 @app.route('/api/database_tables', methods=['GET'])
@@ -1017,29 +1015,18 @@ def edit_task(task_id):
 @app.route('/api/tasks/<int:task_id>', methods=['GET'])
 def view_task(task_id):
     """Retrieve details of a specific task."""
-    username = session.get('username')
-    if not username:
-        logging.warning("User not authenticated while trying to view task.")
-        return {"error": "User not authenticated"}, 401
-
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
     try:
-        logging.info(f"User {username} is requesting task details for ID: {task_id}")
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute("SELECT id, title, description, reward, status FROM tasks WHERE id = %s", (task_id,))
+        cursor.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
         task = cursor.fetchone()
         conn.close()
-
-        if task:
-            logging.info(f"Task details retrieved successfully: {task}")
-            return jsonify(task), 200
-        else:
-            logging.warning(f"Task with ID {task_id} not found.")
-            return {"error": "Task not found"}, 404
+        return task, 200
     except Exception as e:
-        logging.error(f"Error viewing task {task_id}: {e}")
-        return {"error": "Failed to retrieve task details"}, 500
-
+        logging.error(f"Error viewing task: {e}")
+        return {"error": "Failed to view task"}, 500
 
 
 @app.route('/api/users/<int:user_id>', methods=['GET'])
@@ -1145,16 +1132,11 @@ def dashboard():
     if not username:
         return redirect(url_for('home'))
     
-    # Fetch user stats and tasks
     user_stats = get_user_stats(username)
     active_tasks = get_tasks("active")
     upcoming_tasks = get_tasks("upcoming")
 
-    # Add logging for debugging
-    logging.info(f"Dashboard loaded for user: {username}")
-    logging.info(f"User Stats: {user_stats}")
-    logging.info(f"Active Tasks: {active_tasks}")
-    logging.info(f"Upcoming Tasks: {upcoming_tasks}")
+    logging.info(f"Rendering dashboard for {username}: {user_stats}")
 
     return render_template(
         'dashboard.html',
@@ -1163,6 +1145,7 @@ def dashboard():
         active_tasks=active_tasks,
         upcoming_tasks=upcoming_tasks
     )
+
 
 @app.route('/logout')
 def logout():
@@ -1231,5 +1214,4 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     send_startup_message()
     init_db()            # Initialize database with necessary tables
-    create_sample_tasks()  # Populate tasks if table is empty
     app.run(host='0.0.0.0', port=port)
