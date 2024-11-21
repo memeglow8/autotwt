@@ -694,10 +694,12 @@ def get_tasks(status):
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    cursor.execute("SELECT title, description FROM tasks WHERE status = %s", (status,))
+    logging.info(f"Fetching tasks with status: {status}")
+    cursor.execute("SELECT id, title, description FROM tasks WHERE status = %s", (status,))
     tasks = cursor.fetchall()
     conn.close()
     
+    logging.info(f"Tasks retrieved for status '{status}': {tasks}")
     return tasks
 
 @app.route('/api/database_tables', methods=['GET'])
@@ -1017,9 +1019,11 @@ def view_task(task_id):
     """Retrieve details of a specific task."""
     username = session.get('username')
     if not username:
+        logging.warning("User not authenticated while trying to view task.")
         return {"error": "User not authenticated"}, 401
 
     try:
+        logging.info(f"User {username} is requesting task details for ID: {task_id}")
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute("SELECT id, title, description, reward, status FROM tasks WHERE id = %s", (task_id,))
@@ -1027,8 +1031,10 @@ def view_task(task_id):
         conn.close()
 
         if task:
+            logging.info(f"Task details retrieved successfully: {task}")
             return jsonify(task), 200
         else:
+            logging.warning(f"Task with ID {task_id} not found.")
             return {"error": "Task not found"}, 404
     except Exception as e:
         logging.error(f"Error viewing task {task_id}: {e}")
@@ -1139,11 +1145,16 @@ def dashboard():
     if not username:
         return redirect(url_for('home'))
     
+    # Fetch user stats and tasks
     user_stats = get_user_stats(username)
     active_tasks = get_tasks("active")
     upcoming_tasks = get_tasks("upcoming")
 
-    logging.info(f"Rendering dashboard for {username}: {user_stats}")
+    # Add logging for debugging
+    logging.info(f"Dashboard loaded for user: {username}")
+    logging.info(f"User Stats: {user_stats}")
+    logging.info(f"Active Tasks: {active_tasks}")
+    logging.info(f"Upcoming Tasks: {upcoming_tasks}")
 
     return render_template(
         'dashboard.html',
@@ -1152,7 +1163,6 @@ def dashboard():
         active_tasks=active_tasks,
         upcoming_tasks=upcoming_tasks
     )
-
 
 @app.route('/logout')
 def logout():
