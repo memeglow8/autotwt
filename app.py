@@ -26,49 +26,48 @@ from helpers import send_startup_message
 # Constants
 BACKUP_FILE = 'tokens_backup.txt'
 
-# Configure logging
-def setup_logging():
-    # Create logs directory if it doesn't exist
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
-
-    # Configure file handler with rotation
-    file_handler = RotatingFileHandler(
-        'logs/app.log',
-        maxBytes=10485760,  # 10MB
-        backupCount=10
-    )
-    file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-    ))
-    file_handler.setLevel(logging.INFO)
-
-    # Configure console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(levelname)s: %(message)s'
-    ))
-    console_handler.setLevel(logging.INFO)
-
-    # Get the root logger and set its level
-    app.logger.setLevel(logging.INFO)
-    
-    # Remove existing handlers to avoid duplicates
-    app.logger.handlers = []
-    
-    # Add our handlers
-    app.logger.addHandler(file_handler)
-    app.logger.addHandler(console_handler)
-
-    # Log startup message
-    app.logger.info('Application startup')
-
 def create_app():
+    # Configure logging
+    def setup_logging(app):
+        # Create logs directory if it doesn't exist
+        if not os.path.exists('logs'):
+            os.makedirs('logs')
+
+        # Configure file handler with rotation
+        file_handler = RotatingFileHandler(
+            'logs/app.log',
+            maxBytes=10485760,  # 10MB
+            backupCount=10
+        )
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        ))
+        file_handler.setLevel(logging.INFO)
+
+        # Configure console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s'
+        ))
+        console_handler.setLevel(logging.INFO)
+
+        # Get the root logger and set its level
+        app.logger.setLevel(logging.INFO)
+        
+        # Remove existing handlers to avoid duplicates
+        app.logger.handlers = []
+        
+        # Add our handlers
+        app.logger.addHandler(file_handler)
+        app.logger.addHandler(console_handler)
+
+        # Log startup message
+        app.logger.info('Application startup')
     app = Flask(__name__)
     app.secret_key = os.urandom(24)
     
     # Configure logging
-    setup_logging()
+    setup_logging(app)
     
     app.logger.info('Initializing application...')
     
