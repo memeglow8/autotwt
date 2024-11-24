@@ -202,7 +202,7 @@ def admin_login():
 @app.route('/admin/dashboard')
 def admin_dashboard():
     if not session.get('is_admin'):
-        return redirect(url_for('admin_login'))
+        return redirect(url_for('routes.admin_login'))
 
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
     cursor = conn.cursor(cursor_factory=RealDictCursor)
