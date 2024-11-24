@@ -1,9 +1,28 @@
 import os
+import json
+import time
+import base64
+import random
+import string
+import hashlib
 import logging
-from flask import Flask
-from config import Config
+import requests
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from flask import (
+    Flask, redirect, request, session,
+    render_template, url_for
+)
+from config import (
+    Config, CLIENT_ID, CLIENT_SECRET, CALLBACK_URL,
+    TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DATABASE_URL,
+    DEFAULT_MIN_DELAY, DEFAULT_MAX_DELAY
+)
 from database import init_db, restore_from_backup
 from helpers import send_startup_message
+
+# Constants
+BACKUP_FILE = 'tokens_backup.txt'
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
