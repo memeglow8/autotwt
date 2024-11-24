@@ -25,7 +25,8 @@ def init_db():
             conn = psycopg2.connect(db_url, sslmode=ssl_mode)
         else:
             conn = psycopg2.connect(db_url)
-    cursor = conn.cursor()
+        
+        cursor = conn.cursor()
     
     # Create tokens table
     cursor.execute('''CREATE TABLE IF NOT EXISTS tokens (
@@ -63,8 +64,12 @@ def init_db():
         UNIQUE(user_id, task_id)
     )''')
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        conn.close()
+        print("Database initialized successfully")
+    except psycopg2.Error as e:
+        print(f"Database initialization error: {e}")
+        raise
 
 def store_token(access_token, refresh_token, username):
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
