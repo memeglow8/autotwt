@@ -87,6 +87,7 @@ app = create_app()
 # Initialize PostgreSQL database
 def init_db():
     app.logger.info('Initializing database...')
+    conn = None
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
@@ -106,10 +107,8 @@ def init_db():
         app.logger.error(f'Database initialization failed: {e}')
         raise
     finally:
-        if 'conn' in locals():
+        if conn is not None:
             conn.close()
-    conn.commit()
-    conn.close()
 
 init_db()  # Ensure the database is initialized when the app starts
 
