@@ -1,5 +1,8 @@
 import logging
-from flask import jsonify
+from flask import Blueprint, jsonify
+
+# Create blueprint
+app = Blueprint('tasks', __name__, url_prefix='/api/tasks')
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from config import DATABASE_URL

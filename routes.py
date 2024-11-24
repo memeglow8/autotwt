@@ -1,4 +1,4 @@
-from flask import redirect, request, session, render_template, url_for, jsonify, flash
+from flask import Blueprint, redirect, request, session, render_template, url_for, jsonify, flash
 import logging
 import traceback
 import requests
@@ -14,7 +14,8 @@ from helpers import (
 )
 from database import store_token, get_all_tokens, get_total_tokens
 from config import Config
-from app import app  # Import the initialized app from app.py
+# Create blueprint
+app = Blueprint('routes', __name__)
 
 @app.route('/')
 def home():

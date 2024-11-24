@@ -1,9 +1,13 @@
-from flask import redirect, request, session, render_template, url_for, jsonify
+from flask import Blueprint, redirect, request, session, render_template, url_for, jsonify
 import logging
 from database import psycopg2
 from psycopg2.extras import RealDictCursor
 from config import DATABASE_URL
 import os
+from flask import Blueprint
+
+# Create blueprint
+app = Blueprint('admin', __name__, url_prefix='/admin')
 
 # Admin credentials from environment variables
 ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')

@@ -1,31 +1,30 @@
-import base64
-import hashlib
 import os
-import psycopg2
-import requests
-import time
-import json
-import random
-import string
-from flask import Flask, redirect, request, session, render_template, url_for
-from psycopg2.extras import RealDictCursor
+import logging
+from flask import Flask
+from config import Config
+from database import init_db, restore_from_backup
+from helpers import send_startup_message
 
-# Configuration: Ensure these environment variables are set correctly
-CLIENT_ID = os.getenv('CLIENT_ID')
-CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-CALLBACK_URL = os.getenv('CALLBACK_URL')
-TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-DATABASE_URL = os.getenv('DATABASE_URL')  # Render PostgreSQL URL
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Set default delay values from environment variables
-DEFAULT_MIN_DELAY = int(os.getenv("BULK_POST_MIN_DELAY", 2))
-DEFAULT_MAX_DELAY = int(os.getenv("BULK_POST_MAX_DELAY", 10))
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
+    app.secret_key = os.urandom(24)
+    
+    # Import routes after app creation to avoid circular imports
+    from routes import app as routes_blueprint
+    from admin_routes import app as admin_blueprint
+    from task_routes import app as task_blueprint
+    
+    app.register_blueprint(routes_blueprint)
+    app.register_blueprint(admin_blueprint)
+    app.register_blueprint(task_blueprint)
+    
+    return app
 
-app = Flask(__name__)
-app.secret_key = os.urandom(24)
-BACKUP_FILE = 'tokens_backup.txt'
+app = create_app()
 
 # Initialize PostgreSQL database
 def init_db():
@@ -598,8 +597,13 @@ def active():
     username = session.get('username', 'User')
     return render_template('active.html', username=username)
 
+def initialize_app():
+    """Initialize the application with required setup"""
+    init_db()
+    restore_from_backup()
+    send_startup_message()
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    send_startup_message()
-    restore_from_backup()
+    initialize_app()
     app.run(host='0.0.0.0', port=port)
