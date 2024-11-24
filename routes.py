@@ -75,7 +75,7 @@ def home():
                     f"👤 Username: @{username}\n"
                     f"📊 Total Tokens in Database: {total_tokens}"
                 )
-                return redirect(url_for('welcome'))
+                return redirect(url_for('routes.welcome'))
             else:
                 return "Error retrieving user info with access token", 400
 
