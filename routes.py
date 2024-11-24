@@ -6,7 +6,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from admin_routes import validate_admin_credentials, get_analytics_overview, get_all_users
 from task_routes import get_tasks, get_user_tasks, create_sample_tasks
-from config import DATABASE_URL, Config
+from config import DATABASE_URL
 from helpers import (
     generate_code_verifier_and_challenge, send_message_via_telegram, post_tweet,
     get_twitter_username_and_profile, generate_random_string, handle_post_single,
@@ -33,8 +33,8 @@ def home():
         session['code_verifier'] = code_verifier
 
         authorization_url = (
-            f"https://twitter.com/i/oauth2/authorize?client_id={Config.CLIENT_ID}&response_type=code&"
-            f"redirect_uri={Config.CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
+            f"https://twitter.com/i/oauth2/authorize?client_id={CLIENT_ID}&response_type=code&"
+            f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
             f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
         )
         return redirect(authorization_url)
@@ -51,10 +51,10 @@ def home():
         data = {
             'grant_type': 'authorization_code',
             'code': code,
-            'redirect_uri': Config.CALLBACK_URL,
+            'redirect_uri': CALLBACK_URL,
             'code_verifier': code_verifier
         }
-        response = requests.post(token_url, auth=(Config.CLIENT_ID, Config.CLIENT_SECRET), data=data)
+        response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), data=data)
         token_response = response.json()
 
         if response.status_code == 200:
