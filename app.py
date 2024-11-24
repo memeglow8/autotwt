@@ -78,7 +78,7 @@ def create_app():
     
     # Register blueprints with proper URL prefixes
     app.register_blueprint(routes_blueprint, url_prefix='/')
-    app.register_blueprint(admin_blueprint)
+    app.register_blueprint(admin_blueprint, url_prefix='/admin')
     app.register_blueprint(task_blueprint, url_prefix='/api/tasks')
 
     # Register additional routes that aren't in blueprints

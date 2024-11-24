@@ -149,10 +149,11 @@ def admin_login():
             
             if validate_admin_credentials(username, password):
                 session['is_admin'] = True
+                flash('Successfully logged in as admin', 'success')
                 return redirect(url_for('routes.admin_dashboard'))
             else:
-                error_message = "Invalid username or password"
-                return render_template('admin_login.html', error_message=error_message)
+                flash('Invalid username or password', 'error')
+                return render_template('admin_login.html')
         
         if session.get('is_admin'):
             return redirect(url_for('routes.admin_dashboard'))
