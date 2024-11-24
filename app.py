@@ -108,32 +108,7 @@ def create_app():
 app = create_app()
 
 # Initialize PostgreSQL database
-def init_db():
-    app.logger.info('Initializing database...')
-    conn = None
-    try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-        app.logger.info('Database connection established')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tokens (
-                id SERIAL PRIMARY KEY,
-                access_token TEXT NOT NULL,
-                refresh_token TEXT,
-                username TEXT NOT NULL
-            )
-        ''')
-        conn.commit()
-        app.logger.info('Database tables created successfully')
-    except Exception as e:
-        app.logger.error(f'Database initialization failed: {e}')
-        raise
-    finally:
-        if conn is not None:
-            conn.close()
-
-init_db()  # Ensure the database is initialized when the app starts
+# Database initialization moved to database.py
 
 
 
@@ -447,6 +422,10 @@ def perform_refresh(refresh_token):
         error_code = token_response.get('error', 'No error code')
         return f"Error refreshing token: {error_description} (Code: {error_code})", response.status_code
 
+
+@app.route('/')
+def home():
+    return render_template('home.html')
 
 @app.route('/j')
 def meeting():

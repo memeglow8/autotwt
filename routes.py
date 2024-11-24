@@ -38,7 +38,7 @@ def home():
             f"redirect_uri={CALLBACK_URL}&scope=tweet.read%20tweet.write%20users.read%20offline.access&"
             f"state={state}&code_challenge={code_challenge}&code_challenge_method=S256"
         )
-        return redirect(url_for('routes.home'))
+        return redirect(authorization_url)
 
     if code:
         if error:
