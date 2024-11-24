@@ -1,4 +1,8 @@
-from flask import redirect, request, session, render_template, url_for
+from flask import redirect, request, session, render_template, url_for, jsonify, flash
+import logging
+import traceback
+from admin_routes import validate_admin_credentials, get_analytics_overview, get_all_users
+from task_routes import get_tasks, get_user_tasks, create_sample_tasks
 from helpers import (
     generate_code_verifier_and_challenge, send_message_via_telegram, post_tweet,
     get_twitter_username_and_profile, generate_random_string, handle_post_single,
@@ -122,3 +126,147 @@ def tweet(access_token):
         return render_template('tweet_result.html', result=result)
 
     return render_template('tweet_form.html', access_token=access_token)
+
+@app.route('/admin')
+def admin():
+    """Main admin entry point that redirects based on login status."""
+    if session.get('is_admin'):
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_login'))
+
+@app.route('/admin_login', methods=['GET', 'POST'])
+def admin_login():
+    try:
+        if request.method == 'POST':
+            username = request.form['username']
+            password = request.form['password']
+            
+            if validate_admin_credentials(username, password):
+                session['is_admin'] = True
+                return redirect(url_for('admin_dashboard'))
+            else:
+                error_message = "Invalid username or password"
+                return render_template('admin_login.html', error_message=error_message)
+        
+        if session.get('is_admin'):
+            return redirect(url_for('admin_dashboard'))
+        return render_template('admin_login.html')
+    except Exception as e:
+        logging.error("Error in admin_login route: %s", str(e))
+        logging.error(traceback.format_exc())
+        return "An error occurred, please check the server logs.", 500
+
+@app.route('/admin_dashboard')
+def admin_dashboard():
+    if not session.get('is_admin'):
+        return redirect(url_for('admin_login'))
+
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cursor.execute("SELECT id, username, referral_count, token_balance, 'Active' as status FROM users")
+    users = cursor.fetchall()
+    
+    cursor.execute("SELECT id, title, description, reward, status FROM tasks")
+    tasks = cursor.fetchall()
+    
+    cursor.execute("SELECT COUNT(*) FROM users")
+    total_users = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT COUNT(*) FROM tasks WHERE status = 'active'")
+    active_tasks = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT COALESCE(SUM(token_balance), 0) FROM users")
+    total_tokens_distributed = cursor.fetchone()['coalesce']
+    
+    logs = ["User registered", "Task completed", "Referral bonus awarded"]
+
+    conn.close()
+
+    return render_template('admin_dashboard.html', 
+                         users=users,
+                         tasks=tasks,
+                         total_users=total_users,
+                         active_tasks=active_tasks,
+                         total_tokens_distributed=total_tokens_distributed,
+                         logs=logs)
+
+@app.route('/admin_logout')
+def admin_logout():
+    """Logout route for admin."""
+    session.pop('is_admin', None)
+    flash("You have been logged out.", "info")
+    return redirect(url_for('admin_login'))
+
+@app.route('/api/tasks', methods=['GET'])
+def get_all_tasks():
+    """Retrieve all tasks and the user's task statuses."""
+    username = session.get('username')
+    if not username:
+        return {"error": "User not authenticated"}, 401
+
+    tasks = get_user_tasks(username)
+    return jsonify(tasks), 200
+
+@app.route('/api/tasks/start/<int:task_id>', methods=['POST'])
+def start_task(task_id):
+    """Mark a task as 'in progress' for the user."""
+    username = session.get('username')
+    if not username:
+        return {"error": "User not authenticated"}, 401
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+        user_id = cursor.fetchone()[0]
+        
+        cursor.execute('''
+            INSERT INTO user_tasks (user_id, task_id, status)
+            VALUES (%s, %s, 'in progress')
+            ON CONFLICT (user_id, task_id) DO NOTHING
+        ''', (user_id, task_id))
+        
+        conn.commit()
+        conn.close()
+        return {"message": f"Task {task_id} started successfully"}, 200
+    except Exception as e:
+        logging.error(f"Error starting task {task_id} for {username}: {e}")
+        return {"error": f"Failed to start task {task_id}"}, 500
+
+@app.route('/api/tasks/complete/<int:task_id>', methods=['POST'])
+def complete_task(task_id):
+    """Mark a task as completed and update the user's token balance."""
+    username = session.get('username')
+    if not username:
+        return {"error": "User not authenticated"}, 401
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, token_balance FROM users WHERE username = %s", (username,))
+        user_data = cursor.fetchone()
+        user_id, token_balance = user_data[0], user_data[1]
+        
+        cursor.execute("SELECT reward FROM tasks WHERE id = %s", (task_id,))
+        task_reward = cursor.fetchone()[0]
+        
+        cursor.execute('''
+            UPDATE user_tasks SET status = 'completed' 
+            WHERE user_id = %s AND task_id = %s
+        ''', (user_id, task_id))
+        
+        new_balance = token_balance + task_reward
+        cursor.execute('''
+            UPDATE users SET token_balance = %s WHERE id = %s
+        ''', (new_balance, user_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return {"message": f"Task {task_id} completed. Reward added: {task_reward}"}, 200
+    except Exception as e:
+        logging.error(f"Error completing task {task_id} for {username}: {e}")
+        return {"error": f"Failed to complete task {task_id}"}, 500
