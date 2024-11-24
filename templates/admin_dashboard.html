@@ -90,9 +90,9 @@
                         <td>{{ user.referral_count }}</td>
                         <td>{{ user.token_balance }}</td>
                         <td>
-                            <button class="btn btn-sm btn-info" onclick="viewUser({{ user.id }})">View</button>
-                            <button class="btn btn-sm btn-warning" onclick="editUser({{ user.id }}, '{{ user.username }}', {{ user.referral_count }}, {{ user.token_balance }})">Edit</button>
-                            <button class="btn btn-sm btn-danger" onclick="confirmDeleteUser({{ user.id }})">Delete</button>
+                            <button class="btn btn-sm btn-info" onclick="viewUser('{{ user.id }}')">View</button>
+                            <button class="btn btn-sm btn-warning" onclick="editUser('{{ user.id }}', '{{ user.username }}', '{{ user.referral_count }}', '{{ user.token_balance }}')">Edit</button>
+                            <button class="btn btn-sm btn-danger" onclick="confirmDeleteUser('{{ user.id }}')">Delete</button>
                         </td>
                     </tr>
                     {% endfor %}
