@@ -4,8 +4,6 @@ import json
 import requests
 from config import DATABASE_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
-# Default local database URL if DATABASE_URL environment variable is not set
-DEFAULT_DB_URL = "postgresql://postgres:postgres@localhost:5432/taskair"
 
 # Telegram messaging function moved here to avoid circular import
 def send_message_via_telegram(message):
