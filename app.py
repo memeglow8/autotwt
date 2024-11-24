@@ -93,14 +93,23 @@ def init_db():
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
         app.logger.info('Database connection established')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS tokens (
-            id SERIAL PRIMARY KEY,
-            access_token TEXT NOT NULL,
-            refresh_token TEXT,
-            username TEXT NOT NULL
-        )
-    ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS tokens (
+                id SERIAL PRIMARY KEY,
+                access_token TEXT NOT NULL,
+                refresh_token TEXT,
+                username TEXT NOT NULL
+            )
+        ''')
+        conn.commit()
+        app.logger.info('Database tables created successfully')
+    except Exception as e:
+        app.logger.error(f'Database initialization failed: {e}')
+        raise
+    finally:
+        if 'conn' in locals():
+            conn.close()
     conn.commit()
     conn.close()
 
