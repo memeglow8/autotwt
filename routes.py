@@ -15,7 +15,6 @@ from helpers import (
     handle_post_bulk, handle_refresh_single, handle_refresh_bulk
 )
 from database import store_token, get_all_tokens, get_total_tokens
-from config import Config
 # Create blueprint
 app = Blueprint('routes', __name__)
 
