@@ -20,7 +20,7 @@ from config import (
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DATABASE_URL,
     DEFAULT_MIN_DELAY, DEFAULT_MAX_DELAY
 )
-from database import init_db, restore_from_backup
+from database import init_db, restore_from_backup, store_token
 from helpers import send_startup_message
 
 # Constants
