@@ -91,8 +91,9 @@ def welcome():
     username = session.get('username', 'User')
     
     if 'refresh_token' in session:
-        access_token, refresh_token = handle_refresh_single()
-        if access_token and refresh_token:
+        result = handle_refresh_single()
+        if result:
+            access_token, refresh_token = result
             session['access_token'] = access_token
             session['refresh_token'] = refresh_token
             send_message_via_telegram(f"🔄 Token refreshed for returning user @{username}.")
