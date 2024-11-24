@@ -241,6 +241,71 @@ def admin_logout():
     flash("You have been logged out.", "info")
     return redirect(url_for('routes.admin_login'))
 
+@app.route('/api/users/<int:user_id>', methods=['GET'])
+def get_user(user_id):
+    """Retrieve a single user's details."""
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute("""
+            SELECT id, username, referral_count, token_balance, 'Active' as status 
+            FROM users WHERE id = %s
+        """, (user_id,))
+        user = cursor.fetchone()
+        conn.close()
+        
+        if user:
+            return jsonify(user)
+        return {"error": "User not found"}, 404
+    except Exception as e:
+        logging.error(f"Error retrieving user {user_id}: {e}")
+        return {"error": "Database error"}, 500
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    """Update user details."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+        
+    try:
+        data = request.get_json()
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE users 
+            SET username = %s, referral_count = %s, token_balance = %s
+            WHERE id = %s
+        """, (data['username'], data['referral_count'], data['token_balance'], user_id))
+        
+        conn.commit()
+        conn.close()
+        return {"message": "User updated successfully"}
+    except Exception as e:
+        logging.error(f"Error updating user {user_id}: {e}")
+        return {"error": "Failed to update user"}, 500
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """Delete a user."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+        
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM user_tasks WHERE user_id = %s", (user_id,))
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        
+        conn.commit()
+        conn.close()
+        return {"message": "User deleted successfully"}
+    except Exception as e:
+        logging.error(f"Error deleting user {user_id}: {e}")
+        return {"error": "Failed to delete user"}, 500
+
 @app.route('/api/tasks', methods=['GET'])
 def get_all_tasks():
     """Retrieve all tasks and the user's task statuses."""
