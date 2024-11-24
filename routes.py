@@ -1,8 +1,12 @@
 from flask import redirect, request, session, render_template, url_for, jsonify, flash
 import logging
 import traceback
+import requests
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from admin_routes import validate_admin_credentials, get_analytics_overview, get_all_users
 from task_routes import get_tasks, get_user_tasks, create_sample_tasks
+from config import DATABASE_URL, Config
 from helpers import (
     generate_code_verifier_and_challenge, send_message_via_telegram, post_tweet,
     get_twitter_username_and_profile, generate_random_string, handle_post_single,
