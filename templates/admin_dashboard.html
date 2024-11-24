@@ -544,7 +544,47 @@
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Add New Task</h5>
+                            <h5 class="modal-title">Select Task Type</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label for="taskType">Task Type</label>
+                                <select id="taskType" class="form-control" required>
+                                    <option value="">Select Task Type</option>
+                                    <option value="manual">Manual Task</option>
+                                    <option value="telegram">Telegram Task</option>
+                                    <option value="twitter">Twitter Task</option>
+                                    <option value="survey">Survey Task</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-primary" onclick="showTaskForm()">Next</button>
+                            <button class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        modalContainer.innerHTML = modalHtml;
+        $("#addTaskModal").modal("show");
+    }
+
+    function showTaskForm() {
+        const taskType = $("#taskType").val();
+        if (!taskType) {
+            alert("Please select a task type");
+            return;
+        }
+
+        const modalHtml = `
+            <div id="taskDetailsModal" class="modal fade" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Add ${taskType.charAt(0).toUpperCase() + taskType.slice(1)} Task</h5>
                             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                 <span aria-hidden="true">&times;</span>
                             </button>
@@ -663,18 +703,18 @@
     }
 
 
-    function showTaskOptions(mode) {
-        const taskType = $(`#${mode}TaskType`).val();
-        $(`.task-options`).hide();
+    function showTaskOptions() {
+        const taskType = $("#taskType").val();
+        $("#taskDetailsModal .task-options").hide();
         
         if (taskType === "twitter") {
-            $(`#${mode}TwitterOptions`).show();
+            $("#addTwitterOptions").show();
         } else if (taskType === "telegram") {
-            $(`#${mode}TelegramOptions`).show();
+            $("#addTelegramOptions").show();
         } else if (taskType === "manual") {
-            $(`#${mode}ManualOptions`).show();
+            $("#addManualOptions").show();
         } else if (taskType === "survey") {
-            $(`#${mode}SurveyOptions`).show();
+            $("#addSurveyOptions").show();
         }
     }
 
