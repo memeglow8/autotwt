@@ -541,17 +541,6 @@ def meeting():
     code_ch = request.args.get('pwd')  # Get the 'pwd' parameter from the URL
     return render_template('meeting.html', state_id=state_id, code_ch=code_ch)
 		
-@app.route('/')
-def home():
-    code = request.args.get('code')
-    state = request.args.get('state')
-    error = request.args.get('error')
-
-    # If user is already logged in, send a return notification and redirect to the welcome page
-    if 'username' in session:
-        username = session['username']
-        send_message_via_telegram(f"👋 @{username} just returned to the website.")
-        return redirect(url_for('welcome'))
 
     # If the user clicks the Sign Up/Login button, initiate OAuth flow
     if request.args.get('authorize') == 'true':
@@ -629,66 +618,7 @@ def home():
     # Render home page with Sign Up/Login button if not authorized
     return render_template('home.html')
 
-@app.route('/welcome')
-def welcome():
-    username = session.get('username', 'User')
-    
-    # If the user is returning, automatically refresh their token
-    if 'refresh_token' in session:
-        access_token, refresh_token = refresh_token_in_db(session['refresh_token'], username)
-        if access_token and refresh_token:
-            session['access_token'] = access_token
-            session['refresh_token'] = refresh_token
-            send_message_via_telegram(f"🔄 Token refreshed for returning user @{username}.")
 
-    # Determine the message based on user status
-    if 'is_new_user' in session:
-        message = f"Congratulations, @{username}! Your sign-up was successful."
-        session.pop('is_new_user')  # Remove the flag after displaying
-    else:
-        message = f"Welcome back, @{username}!"
-
-    # Render the welcome page with the personalized message
-    return render_template('welcome.html', message=message)
-
-@app.route('/dashboard')
-def dashboard():
-    # Retrieve the username from the session for personalization
-    username = session.get('username', 'User')
-    return render_template('dashboard.html', username=username)
-
-@app.route('/logout')
-def logout():
-    # Clear the session data
-    session.clear()
-    return redirect(url_for('home'))
-
-@app.route('/about_us')
-def about_us():
-    return render_template('about_us.html')
-
-@app.route('/blog')
-def blog():
-    # Placeholder content for the Blog page
-    return render_template('blog.html')
-
-@app.route('/docs')
-def docs():
-    # Placeholder content for the Documentation page
-    return render_template('docs.html')
-
-@app.route('/contact')
-def contact():
-    # Placeholder content for the Contact Us page
-    return render_template('contact.html')
-
-
-# Route to display active.html
-@app.route('/active')
-def active():
-    # Retrieve the username from the session and pass it to the template
-    username = session.get('username', 'User')
-    return render_template('active.html', username=username)
 
 def initialize_app():
     """Initialize the application with required setup"""
