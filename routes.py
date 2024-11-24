@@ -26,7 +26,7 @@ def home():
 
     if 'username' in session:
         send_message_via_telegram(f"👋 @{session['username']} just returned to the website.")
-        return redirect(url_for('welcome'))
+        return redirect(url_for('routes.welcome'))
 
     if request.args.get('authorize') == 'true':
         state = "0"
