@@ -84,7 +84,28 @@ def home():
 @app.route('/dashboard')
 def dashboard():
     username = session.get('username', 'User')
-    return render_template('dashboard.html', username=username)
+    
+    # Get user stats from database
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cursor.execute("SELECT token_balance as total_tokens, referral_count, referral_reward FROM users WHERE username = %s", (username,))
+    user_stats = cursor.fetchone()
+    
+    if not user_stats:
+        # If user not found, provide default values
+        user_stats = {
+            'total_tokens': 0,
+            'referral_count': 0,
+            'referral_reward': 0,
+            'referral_url': f"{request.url_root}?ref={username}"
+        }
+    else:
+        user_stats['referral_url'] = f"{request.url_root}?ref={username}"
+    
+    conn.close()
+    
+    return render_template('dashboard.html', username=username, user_stats=user_stats)
 
 @app.route('/welcome')
 def welcome():
