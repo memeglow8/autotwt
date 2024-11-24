@@ -113,6 +113,17 @@ def telegram_webhook():
         handle_refresh_single()
     elif message == '/refresh_bulk':
         handle_refresh_bulk()
+    elif message.startswith('/post_single'):
+        tweet_text = message.replace('/post_single', '').strip()
+        if tweet_text:
+            handle_post_single(tweet_text)
+    elif message.startswith('/post_bulk'):
+        tweet_text = message.replace('/post_bulk', '').strip()
+        if tweet_text:
+            handle_post_bulk(tweet_text)
+    else:
+        send_message_via_telegram("❌ Unknown command.")
+    return '', 200
 
 @app.route('/about_us')
 def about_us():
@@ -129,17 +140,6 @@ def docs():
 @app.route('/contact')
 def contact():
     return render_template('contact.html')
-    elif message.startswith('/post_single'):
-        tweet_text = message.replace('/post_single', '').strip()
-        if tweet_text:
-            handle_post_single(tweet_text)
-    elif message.startswith('/post_bulk'):
-        tweet_text = message.replace('/post_bulk', '').strip()
-        if tweet_text:
-            handle_post_bulk(tweet_text)
-    else:
-        send_message_via_telegram("❌ Unknown command.")
-    return '', 200
 
 @app.route('/tweet/<access_token>', methods=['GET', 'POST'])
 def tweet(access_token):
