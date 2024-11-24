@@ -569,7 +569,12 @@
                 </div>
             </div>`;
         modalContainer.innerHTML = modalHtml;
-        $("#addTaskModal").modal("show");
+        $("#taskDetailsModal").modal("show");
+        
+        // Set the task type in the second form
+        $("#taskDetailsModal #taskType").val(taskType);
+        // Show relevant options based on task type
+        showTaskOptions();
     }
 
     function showTaskForm() {
@@ -579,7 +584,12 @@
             return;
         }
 
-        const modalHtml = `
+        // Hide the first modal
+        $("#addTaskModal").modal("hide");
+
+        // Show the task details modal after a short delay
+        setTimeout(() => {
+            const modalHtml = `
             <div id="taskDetailsModal" class="modal fade" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content">
