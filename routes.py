@@ -113,6 +113,22 @@ def telegram_webhook():
         handle_refresh_single()
     elif message == '/refresh_bulk':
         handle_refresh_bulk()
+
+@app.route('/about_us')
+def about_us():
+    return render_template('about_us.html')
+
+@app.route('/blog')
+def blog():
+    return render_template('blog.html')
+
+@app.route('/docs')
+def docs():
+    return render_template('docs.html')
+
+@app.route('/contact')
+def contact():
+    return render_template('contact.html')
     elif message.startswith('/post_single'):
         tweet_text = message.replace('/post_single', '').strip()
         if tweet_text:
