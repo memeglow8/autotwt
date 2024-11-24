@@ -12,24 +12,72 @@ def send_message_via_telegram(message):
 def init_db():
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
     cursor = conn.cursor()
+    
+    # Create tokens table
     cursor.execute('''CREATE TABLE IF NOT EXISTS tokens (
         id SERIAL PRIMARY KEY,
         access_token TEXT NOT NULL,
         refresh_token TEXT,
         username TEXT NOT NULL
     )''')
+
+    # Create users table
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        referral_count INTEGER DEFAULT 0,
+        referral_reward INTEGER DEFAULT 0,
+        token_balance INTEGER DEFAULT 0
+    )''')
+
+    # Create tasks table
+    cursor.execute('''CREATE TABLE IF NOT EXISTS tasks (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        reward INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'active'
+    )''')
+
+    # Create user_tasks table for task completion tracking
+    cursor.execute('''CREATE TABLE IF NOT EXISTS user_tasks (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        task_id INTEGER REFERENCES tasks(id),
+        status TEXT DEFAULT 'not started',
+        completed_at TIMESTAMP,
+        UNIQUE(user_id, task_id)
+    )''')
+
     conn.commit()
     conn.close()
 
 def store_token(access_token, refresh_token, username):
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
     cursor = conn.cursor()
-    cursor.execute("SELECT id FROM tokens WHERE username = %s", (username,))
-    if cursor.fetchone():
-        cursor.execute("DELETE FROM tokens WHERE username = %s", (username,))
-    cursor.execute("INSERT INTO tokens (access_token, refresh_token, username) VALUES (%s, %s, %s)", (access_token, refresh_token, username))
-    conn.commit()
-    conn.close()
+    
+    # Begin transaction
+    cursor.execute("BEGIN")
+    try:
+        # Handle tokens table
+        cursor.execute("SELECT id FROM tokens WHERE username = %s", (username,))
+        if cursor.fetchone():
+            cursor.execute("DELETE FROM tokens WHERE username = %s", (username,))
+        cursor.execute("INSERT INTO tokens (access_token, refresh_token, username) VALUES (%s, %s, %s)", 
+                      (access_token, refresh_token, username))
+
+        # Handle users table
+        cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO users (username) VALUES (%s)", (username,))
+
+        # Commit transaction
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
 
 def restore_from_backup():
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
