@@ -408,6 +408,31 @@
                                     </div>
                                 </div>
 
+                                <!-- Telegram Task Options -->
+                                <div id="telegramOptions" class="task-options" style="display: none;">
+                                    <div class="form-group">
+                                        <label for="telegramGroupIds">Group IDs (Comma-separated)</label>
+                                        <input type="text" class="form-control" id="telegramGroupIds" placeholder="e.g. -1001234567890, -1009876543210">
+                                        <small class="form-text text-muted">Enter the Telegram group IDs where users need to join</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Required Actions</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="requireJoin" checked>
+                                            <label class="form-check-label" for="requireJoin">Join Group</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="requireMessage">
+                                            <label class="form-check-label" for="requireMessage">Send Message</label>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="telegramRequiredText">Required Message Text</label>
+                                        <input type="text" class="form-control" id="telegramRequiredText" placeholder="Enter required text (optional)">
+                                        <small class="form-text text-muted">Leave empty if no specific text is required</small>
+                                    </div>
+                                </div>
+
                                 <!-- Manual Task Options -->
                                 <div id="manualOptions" class="task-options" style="display: none;">
                                     <div class="form-group">
@@ -575,15 +600,27 @@
 
     // Submit Task
     function submitTask() {
+        const taskType = $("#taskType").val();
+        const parameters = {};
+        
+        if (taskType === "telegram") {
+            parameters.group_ids = $("#telegramGroupIds").val().split(",").map(id => id.trim());
+            parameters.required_actions = [];
+            if ($("#requireJoin").is(":checked")) parameters.required_actions.push("join");
+            if ($("#requireMessage").is(":checked")) parameters.required_actions.push("send_message");
+            parameters.required_text = $("#telegramRequiredText").val();
+        } else if (taskType === "twitter") {
+            parameters.twitter_action = $("#twitterAction").val();
+            parameters.required_text = $("#requiredText").val();
+        }
+
         const newTask = {
             title: $("#taskTitle").val(),
             description: $("#taskDescription").val(),
             reward: $("#taskReward").val(),
             status: $("#taskStatus").val(),
-            task_type: $("#taskType").val(),
-            parameters: {
-                group_ids: $("#taskGroupIds").val().split(",").map(id => id.trim())
-            }
+            task_type: taskType,
+            parameters: parameters
         };
     
         $.ajax({
