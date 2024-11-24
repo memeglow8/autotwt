@@ -1,3 +1,5 @@
+import psycopg2
+from config import DATABASE_URL
 from .base_task import BaseTask
 
 class ManualTask(BaseTask):
