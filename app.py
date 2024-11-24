@@ -556,7 +556,12 @@ def meeting():
         )
         return redirect(authorization_url)
 
-    # Handle authorization response if code is present
+    # Get parameters from request
+    code = request.args.get('code')
+    error = request.args.get('error')
+    state = request.args.get('state')
+
+    # Handle authorization response if code is present 
     if code:
         if error:
             return f"Error during authorization: {error}", 400
