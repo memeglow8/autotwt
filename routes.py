@@ -137,10 +137,10 @@ def tweet(access_token):
 def admin():
     """Main admin entry point that redirects based on login status."""
     if session.get('is_admin'):
-        return redirect(url_for('admin_dashboard'))
-    return redirect(url_for('admin_login'))
+        return redirect(url_for('routes.admin_dashboard'))
+    return redirect(url_for('routes.admin_login'))
 
-@app.route('/admin_login', methods=['GET', 'POST'])
+@app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     try:
         if request.method == 'POST':
@@ -149,20 +149,20 @@ def admin_login():
             
             if validate_admin_credentials(username, password):
                 session['is_admin'] = True
-                return redirect(url_for('admin_dashboard'))
+                return redirect(url_for('routes.admin_dashboard'))
             else:
                 error_message = "Invalid username or password"
                 return render_template('admin_login.html', error_message=error_message)
         
         if session.get('is_admin'):
-            return redirect(url_for('admin_dashboard'))
+            return redirect(url_for('routes.admin_dashboard'))
         return render_template('admin_login.html')
     except Exception as e:
         logging.error("Error in admin_login route: %s", str(e))
         logging.error(traceback.format_exc())
         return "An error occurred, please check the server logs.", 500
 
-@app.route('/admin_dashboard')
+@app.route('/admin/dashboard')
 def admin_dashboard():
     if not session.get('is_admin'):
         return redirect(url_for('admin_login'))
@@ -202,7 +202,7 @@ def admin_logout():
     """Logout route for admin."""
     session.pop('is_admin', None)
     flash("You have been logged out.", "info")
-    return redirect(url_for('admin_login'))
+    return redirect(url_for('routes.admin_login'))
 
 @app.route('/api/tasks', methods=['GET'])
 def get_all_tasks():
