@@ -152,6 +152,19 @@
 <script>
     const modalContainer = document.getElementById("dynamicModals");
 
+    function showTaskOptions() {
+        const taskType = $("#editTaskType").val();
+        $(".task-options").hide();
+            
+        if (taskType === "twitter") {
+            $("#twitterOptions").show();
+        } else if (taskType === "manual") {
+            $("#manualOptions").show();
+        } else if (taskType === "telegram") {
+            $("#telegramOptions").show();
+        }
+    }
+
     // View User
     function viewUser(userId) {
         $.ajax({
@@ -371,12 +384,44 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="editTaskType">Task Type</label>
-                                    <select id="editTaskType" class="form-control" required>
+                                    <select id="editTaskType" class="form-control" required onchange="showTaskOptions()">
                                         <option value="manual" ${taskType === "manual" ? "selected" : ""}>Manual</option>
                                         <option value="telegram" ${taskType === "telegram" ? "selected" : ""}>Telegram</option>
                                         <option value="twitter" ${taskType === "twitter" ? "selected" : ""}>Twitter</option>
                                         <option value="survey" ${taskType === "survey" ? "selected" : ""}>Survey</option>
                                     </select>
+                                </div>
+
+                                <!-- Twitter Task Options -->
+                                <div id="twitterOptions" class="task-options" style="display: none;">
+                                    <div class="form-group">
+                                        <label for="twitterAction">Action Type</label>
+                                        <select id="twitterAction" class="form-control">
+                                            <option value="tweet">Simple Tweet</option>
+                                            <option value="retweet">Retweet</option>
+                                            <option value="quote">Quote Tweet</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="requiredText">Required Text/Hashtags</label>
+                                        <input type="text" class="form-control" id="requiredText">
+                                    </div>
+                                </div>
+
+                                <!-- Manual Task Options -->
+                                <div id="manualOptions" class="task-options" style="display: none;">
+                                    <div class="form-group">
+                                        <label for="taskInstructions">Instructions</label>
+                                        <textarea class="form-control" id="taskInstructions" rows="3"></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="proofFormat">Proof Format</label>
+                                        <select id="proofFormat" class="form-control">
+                                            <option value="text">Text Description</option>
+                                            <option value="image">Image Upload</option>
+                                            <option value="link">URL/Link</option>
+                                        </select>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="editTaskGroupIds">Telegram Group IDs (Comma-Separated)</label>
