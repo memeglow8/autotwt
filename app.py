@@ -63,6 +63,7 @@ def create_app():
 
         # Log startup message
         app.logger.info('Application startup')
+
     app = Flask(__name__)
     app.secret_key = os.urandom(24)
     
@@ -76,9 +77,32 @@ def create_app():
     from admin_routes import app as admin_blueprint
     from task_routes import app as task_blueprint
     
-    app.register_blueprint(routes_blueprint)
-    app.register_blueprint(admin_blueprint)
-    app.register_blueprint(task_blueprint)
+    # Register blueprints with proper URL prefixes
+    app.register_blueprint(routes_blueprint, url_prefix='/')
+    app.register_blueprint(admin_blueprint, url_prefix='/admin')
+    app.register_blueprint(task_blueprint, url_prefix='/api/tasks')
+
+    # Register additional routes that aren't in blueprints
+    @app.route('/about_us')
+    def about_us():
+        return render_template('about_us.html')
+
+    @app.route('/blog')
+    def blog():
+        return render_template('blog.html')
+
+    @app.route('/docs')
+    def docs():
+        return render_template('docs.html')
+
+    @app.route('/contact')
+    def contact():
+        return render_template('contact.html')
+
+    @app.route('/active')
+    def active():
+        username = session.get('username', 'User')
+        return render_template('active.html', username=username)
     
     return app
 
