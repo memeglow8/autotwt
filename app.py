@@ -6,6 +6,8 @@ import random
 import string
 import hashlib
 import logging
+import logging.handlers
+from logging.handlers import RotatingFileHandler
 import requests
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -25,12 +27,51 @@ from helpers import send_startup_message
 BACKUP_FILE = 'tokens_backup.txt'
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+def setup_logging():
+    # Create logs directory if it doesn't exist
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+
+    # Configure file handler with rotation
+    file_handler = RotatingFileHandler(
+        'logs/app.log',
+        maxBytes=10485760,  # 10MB
+        backupCount=10
+    )
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+    ))
+    file_handler.setLevel(logging.INFO)
+
+    # Configure console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s: %(message)s'
+    ))
+    console_handler.setLevel(logging.INFO)
+
+    # Get the root logger and set its level
+    app.logger.setLevel(logging.INFO)
+    
+    # Remove existing handlers to avoid duplicates
+    app.logger.handlers = []
+    
+    # Add our handlers
+    app.logger.addHandler(file_handler)
+    app.logger.addHandler(console_handler)
+
+    # Log startup message
+    app.logger.info('Application startup')
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
     app.secret_key = os.urandom(24)
+    
+    # Configure logging
+    setup_logging()
+    
+    app.logger.info('Initializing application...')
     
     # Import routes after app creation to avoid circular imports
     from routes import app as routes_blueprint
@@ -47,8 +88,11 @@ app = create_app()
 
 # Initialize PostgreSQL database
 def init_db():
-    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-    cursor = conn.cursor()
+    app.logger.info('Initializing database...')
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
+        app.logger.info('Database connection established')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS tokens (
             id SERIAL PRIMARY KEY,
@@ -63,7 +107,7 @@ def init_db():
 init_db()  # Ensure the database is initialized when the app starts
 
 def store_token(access_token, refresh_token, username):
-    print("Storing token in the database...")
+    app.logger.info(f"Storing token in database for user: {username}")
 
     try:
         # Connect to the database
