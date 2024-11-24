@@ -4,6 +4,9 @@ import json
 import requests
 from config import DATABASE_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
+# Default local database URL if DATABASE_URL environment variable is not set
+DEFAULT_DB_URL = "postgresql://postgres:postgres@localhost:5432/taskair"
+
 # Telegram messaging function moved here to avoid circular import
 def send_message_via_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -11,7 +14,17 @@ def send_message_via_telegram(message):
     requests.post(url, json=data)
 
 def init_db():
-    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    # Use DATABASE_URL from environment or fall back to local default
+    db_url = DATABASE_URL if DATABASE_URL else DEFAULT_DB_URL
+    
+    # Don't require SSL for local connections
+    ssl_mode = 'require' if 'localhost' not in db_url else None
+    
+    try:
+        if ssl_mode:
+            conn = psycopg2.connect(db_url, sslmode=ssl_mode)
+        else:
+            conn = psycopg2.connect(db_url)
     cursor = conn.cursor()
     
     # Create tokens table
