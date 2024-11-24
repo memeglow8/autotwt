@@ -152,6 +152,111 @@
 <script>
     const modalContainer = document.getElementById("dynamicModals");
 
+    // User Management Functions
+    function viewUser(userId) {
+        $.ajax({
+            url: `/api/users/${userId}`,
+            type: "GET",
+            success: function(response) {
+                if (response.error) {
+                    alert(response.error);
+                    return;
+                }
+                const modalHtml = `
+                    <div id="viewUserModal" class="modal fade" tabindex="-1">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">User Details</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                                    <p><strong>Username:</strong> ${response.username}</p>
+                                    <p><strong>Status:</strong> ${response.status}</p>
+                                    <p><strong>Referral Count:</strong> ${response.referral_count}</p>
+                                    <p><strong>Token Balance:</strong> ${response.token_balance}</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                modalContainer.innerHTML = modalHtml;
+                $("#viewUserModal").modal("show");
+            },
+            error: function(xhr) {
+                const errorMsg = xhr.responseJSON?.error || "Failed to retrieve user details.";
+                alert(errorMsg);
+            }
+        });
+    }
+
+    function editUser(userId, username, referralCount, tokenBalance) {
+        const modalHtml = `
+            <div id="editUserModal" class="modal fade" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit User</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <form>
+                                <div class="form-group">
+                                    <label for="editUsername">Username</label>
+                                    <input type="text" class="form-control" id="editUsername" value="${username}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="editReferralCount">Referral Count</label>
+                                    <input type="number" class="form-control" id="editReferralCount" value="${referralCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="editTokenBalance">Token Balance</label>
+                                    <input type="number" class="form-control" id="editTokenBalance" value="${tokenBalance}" required>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-primary" onclick="updateUser(${userId})">Save Changes</button>
+                            <button class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        modalContainer.innerHTML = modalHtml;
+        $("#editUserModal").modal("show");
+    }
+
+    function confirmDeleteUser(userId) {
+        const modalHtml = `
+            <div id="deleteUserModal" class="modal fade" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Confirm Delete</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Are you sure you want to delete this user?</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-danger" onclick="deleteUser(${userId})">Delete</button>
+                            <button class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        modalContainer.innerHTML = modalHtml;
+        $("#deleteUserModal").modal("show");
+    }
+
     function showTaskOptions() {
         const taskType = $("#editTaskType").val();
         $(".task-options").hide();
@@ -162,6 +267,8 @@
             $("#manualOptions").show();
         } else if (taskType === "telegram") {
             $("#telegramOptions").show();
+        } else if (taskType === "survey") {
+            $("#surveyOptions").show();
         }
     }
 
