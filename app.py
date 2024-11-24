@@ -64,7 +64,7 @@ def create_app():
         app.logger.info('Application startup')
 
     app = Flask(__name__)
-    app.secret_key = os.urandom(24)
+    app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
     
     # Configure logging
     setup_logging(app)

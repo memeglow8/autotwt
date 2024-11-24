@@ -77,10 +77,19 @@
                 </div>
                 
                 <!-- Error message display -->
+                {% with messages = get_flashed_messages() %}
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="error-message">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
                 {% if error_message %}
-                <div class="error-message">
-                    {{ error_message }}
-                </div>
+                    <div class="error-message">
+                        {{ error_message }}
+                    </div>
                 {% endif %}
                 
                 <button type="submit" class="btn btn-login">Login</button>
