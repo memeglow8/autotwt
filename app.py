@@ -82,26 +82,6 @@ def create_app():
     app.register_blueprint(task_blueprint, url_prefix='/api/tasks')
 
     # Register additional routes that aren't in blueprints
-    @app.route('/about_us')
-    def about_us():
-        return render_template('about_us.html')
-
-    @app.route('/blog')
-    def blog():
-        return render_template('blog.html')
-
-    @app.route('/docs')
-    def docs():
-        return render_template('docs.html')
-
-    @app.route('/contact')
-    def contact():
-        return render_template('contact.html')
-
-    @app.route('/active')
-    def active():
-        username = session.get('username', 'User')
-        return render_template('active.html', username=username)
     
     return app
 
