@@ -569,12 +569,7 @@
                 </div>
             </div>`;
         modalContainer.innerHTML = modalHtml;
-        $("#taskDetailsModal").modal("show");
-        
-        // Set the task type in the second form
-        $("#taskDetailsModal #taskType").val(taskType);
-        // Show relevant options based on task type
-        showTaskOptions();
+        $("#addTaskModal").modal("show");
     }
 
     function showTaskForm() {
