@@ -16,9 +16,9 @@ from flask import (
     render_template, url_for
 )
 from config import (
-    Config, CLIENT_ID, CLIENT_SECRET, CALLBACK_URL,
+    CLIENT_ID, CLIENT_SECRET, CALLBACK_URL,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DATABASE_URL,
-    DEFAULT_MIN_DELAY, DEFAULT_MAX_DELAY
+    DEFAULT_MIN_DELAY, DEFAULT_MAX_DELAY, Config
 )
 from database import init_db, restore_from_backup
 from helpers import send_startup_message
