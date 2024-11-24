@@ -612,7 +612,7 @@ def meeting():
                 )
 
                 # Redirect to the welcome page after saving and notifying
-                return redirect(url_for('welcome'))
+                return redirect(url_for('routes.welcome'))
             else:
                 return "Error retrieving user info with access token", 400
         else:
