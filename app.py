@@ -24,7 +24,6 @@ from database import init_db, restore_from_backup
 from helpers import send_startup_message
 
 # Constants
-BACKUP_FILE = 'tokens_backup.txt'
 
 def create_app():
     # Configure logging
@@ -136,93 +135,7 @@ def init_db():
 
 init_db()  # Ensure the database is initialized when the app starts
 
-def store_token(access_token, refresh_token, username):
-    app.logger.info(f"Storing token in database for user: {username}")
 
-    try:
-        # Connect to the database
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-
-        # Check if the user already has an entry
-        cursor.execute("SELECT id FROM tokens WHERE username = %s", (username,))
-        existing_user = cursor.fetchone()
-
-        # Delete the old entry if it exists
-        if existing_user:
-            cursor.execute("DELETE FROM tokens WHERE username = %s", (username,))
-            print(f"Old token data for @{username} has been deleted to prevent duplicate entries.")
-
-        # Insert the new token data
-        cursor.execute('''
-            INSERT INTO tokens (access_token, refresh_token, username)
-            VALUES (%s, %s, %s)
-        ''', (access_token, refresh_token, username))
-        conn.commit()
-        conn.close()
-
-        # Fetch and backup all tokens
-        backup_data = get_all_tokens()
-        formatted_backup_data = [{'access_token': a, 'refresh_token': r, 'username': u} for a, r, u in backup_data]
-        
-        with open(BACKUP_FILE, 'w') as f:
-            json.dump(formatted_backup_data, f, indent=4)
-        print(f"Backup created/updated in {BACKUP_FILE}. Total tokens: {len(backup_data)}")
-
-        # Notify Telegram
-        send_message_via_telegram(f"💾 Backup updated! Token added for @{username}.\n📊 Total tokens in backup: {len(backup_data)}")
-
-    except Exception as e:
-        print(f"Database error while storing token: {e}")
-
-def restore_from_backup():
-    print("Restoring from backup if database is empty...")
-    try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM tokens')
-        count = cursor.fetchone()[0]
-        conn.close()
-    except Exception as e:
-        print(f"Database error during restore check: {e}")
-        return
-
-    if count == 0:
-        if os.path.exists(BACKUP_FILE):
-            try:
-                with open(BACKUP_FILE, 'r') as f:
-                    backup_data = json.load(f)
-                    if not isinstance(backup_data, list):
-                        raise ValueError("Invalid format in backup file.")
-            except (json.JSONDecodeError, ValueError, IOError) as e:
-                print(f"Error reading backup file: {e}")
-                return
-
-            restored_count = 0
-            for token_data in backup_data:
-                access_token = token_data['access_token']
-                refresh_token = token_data.get('refresh_token', None)
-                username = token_data['username']
-
-                try:
-                    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-                    cursor = conn.cursor()
-                    cursor.execute('''
-                        INSERT INTO tokens (access_token, refresh_token, username)
-                        VALUES (%s, %s, %s)
-                    ''', (access_token, refresh_token, username))
-                    conn.commit()
-                    conn.close()
-                    restored_count += 1
-                except Exception as e:
-                    print(f"Error restoring token for {username}: {e}")
-
-            send_message_via_telegram(
-                f"📂 Backup restored successfully!\n📊 Total tokens restored: {restored_count}"
-            )
-            print(f"Database restored from backup. Total tokens restored: {restored_count}")
-        else:
-            print("No backup file found. Skipping restoration.")
 
 def get_all_tokens():
     try:
