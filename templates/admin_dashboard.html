@@ -592,4 +592,454 @@
     </script>
 </body>
 
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - TaskAir</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .page-title {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #28a745;
+            margin: 30px 0;
+            text-align: center;
+        }
+        .admin-section {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .btn-gradient {
+            background: linear-gradient(90deg, #28a745, #00d4ff);
+            color: #fff;
+        }
+        .bg-dark {
+            background-color: #111;
+        }
+        .footer {
+            background-color: #333;
+            color: #fff;
+            padding: 30px 20px;
+            text-align: center;
+            margin-top: 50px;
+        }
+        .footer-logo {
+            width: 100px;
+        }
+        .invalid-feedback {
+            display: none;
+            color: red;
+        }
+        .was-validated .form-control:invalid ~ .invalid-feedback {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="bg-dark py-3">
+        <div class="container d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <img src="https://i.ibb.co/drX2BcY/taskair-icon.png" alt="TaskAir Icon" style="width: 40px; margin-right: 8px;">
+                <span class="text-white h4 mb-0">TaskAir Admin</span>
+            </div>
+            <div class="header-buttons">
+                <a href="{{ url_for('routes.admin_logout') }}" class="btn btn-gradient">Logout</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <h1 class="page-title">Admin Dashboard</h1>
+
+        <!-- Stats Overview -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Users</h5>
+                        <h3>{{ total_users }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Active Tasks</h5>
+                        <h3>{{ active_tasks }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Tokens</h5>
+                        <h3>{{ total_tokens_distributed }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Recent Activity</h5>
+                        <h3>{{ logs|length }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Management Section -->
+        <div class="admin-section">
+            <h2>User Management</h2>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>User ID</th>
+                            <th>Username</th>
+                            <th>Status</th>
+                            <th>Referral Count</th>
+                            <th>Token Balance</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>{{ user.username }}</td>
+                            <td><span class="badge badge-success">{{ user.status }}</span></td>
+                            <td>{{ user.referral_count }}</td>
+                            <td>{{ user.token_balance }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-info" onclick="viewUser('{{ user.id }}')">View</button>
+                                <button class="btn btn-sm btn-warning" onclick="editUser('{{ user.id }}')">Edit</button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteUser('{{ user.id }}')">Delete</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Task Management Section -->
+        <div class="admin-section">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2>Task Management</h2>
+                <button class="btn btn-gradient" onclick="openAddTaskModal()">Add New Task</button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Task ID</th>
+                            <th>Title</th>
+                            <th>Description</th>
+                            <th>Reward</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in tasks %}
+                        <tr>
+                            <td>{{ task.id }}</td>
+                            <td>{{ task.title }}</td>
+                            <td>{{ task.description }}</td>
+                            <td>{{ task.reward }}</td>
+                            <td>{{ task.status }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-info" onclick="viewTask('{{ task.id }}')">View</button>
+                                <button class="btn btn-sm btn-warning" onclick="editTask('{{ task.id }}')">Edit</button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteTask('{{ task.id }}')">Delete</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Container -->
+    <div id="modalContainer"></div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>© 2024 TaskAir. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // Utility Functions
+        function showModal(modalContent) {
+            document.getElementById('modalContainer').innerHTML = modalContent;
+            $('#dynamicModal').modal('show');
+        }
+
+        function closeModal() {
+            $('#dynamicModal').modal('hide');
+        }
+
+        // User Management Functions
+        function viewUser(userId) {
+            $.get(`/api/users/${userId}`, function(user) {
+                const modalContent = `
+                    <div class="modal fade" id="dynamicModal" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">User Details</h5>
+                                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <p><strong>Username:</strong> ${user.username}</p>
+                                    <p><strong>Status:</strong> ${user.status}</p>
+                                    <p><strong>Referral Count:</strong> ${user.referral_count}</p>
+                                    <p><strong>Token Balance:</strong> ${user.token_balance}</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                showModal(modalContent);
+            });
+        }
+
+        function editUser(userId) {
+            $.get(`/api/users/${userId}`, function(user) {
+                const modalContent = `
+                    <div class="modal fade" id="dynamicModal" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Edit User</h5>
+                                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="editUserForm">
+                                        <div class="form-group">
+                                            <label>Username</label>
+                                            <input type="text" class="form-control" name="username" value="${user.username}" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Token Balance</label>
+                                            <input type="number" class="form-control" name="token_balance" value="${user.token_balance}" required>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-primary" onclick="updateUser(${userId})">Save</button>
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                showModal(modalContent);
+            });
+        }
+
+        function updateUser(userId) {
+            const formData = new FormData(document.getElementById('editUserForm'));
+            const data = Object.fromEntries(formData.entries());
+            
+            $.ajax({
+                url: `/api/users/${userId}`,
+                type: 'PUT',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function() {
+                    closeModal();
+                    location.reload();
+                }
+            });
+        }
+
+        function deleteUser(userId) {
+            if (confirm('Are you sure you want to delete this user?')) {
+                $.ajax({
+                    url: `/api/users/${userId}`,
+                    type: 'DELETE',
+                    success: function() {
+                        location.reload();
+                    }
+                });
+            }
+        }
+
+        // Task Management Functions
+        function openAddTaskModal() {
+            const modalContent = `
+                <div class="modal fade" id="dynamicModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Add New Task</h5>
+                                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="addTaskForm">
+                                    <div class="form-group">
+                                        <label>Title</label>
+                                        <input type="text" class="form-control" name="title" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Description</label>
+                                        <textarea class="form-control" name="description" required></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Reward</label>
+                                        <input type="number" class="form-control" name="reward" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Status</label>
+                                        <select class="form-control" name="status" required>
+                                            <option value="active">Active</option>
+                                            <option value="inactive">Inactive</option>
+                                            <option value="completed">Completed</option>
+                                        </select>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-primary" onclick="createTask()">Create</button>
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            showModal(modalContent);
+        }
+
+        function createTask() {
+            const formData = new FormData(document.getElementById('addTaskForm'));
+            const data = Object.fromEntries(formData.entries());
+            
+            $.ajax({
+                url: '/api/tasks',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function() {
+                    closeModal();
+                    location.reload();
+                }
+            });
+        }
+
+        function viewTask(taskId) {
+            $.get(`/api/tasks/${taskId}`, function(task) {
+                const modalContent = `
+                    <div class="modal fade" id="dynamicModal" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Task Details</h5>
+                                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <p><strong>Title:</strong> ${task.title}</p>
+                                    <p><strong>Description:</strong> ${task.description}</p>
+                                    <p><strong>Reward:</strong> ${task.reward}</p>
+                                    <p><strong>Status:</strong> ${task.status}</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                showModal(modalContent);
+            });
+        }
+
+        function editTask(taskId) {
+            $.get(`/api/tasks/${taskId}`, function(task) {
+                const modalContent = `
+                    <div class="modal fade" id="dynamicModal" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Edit Task</h5>
+                                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="editTaskForm">
+                                        <div class="form-group">
+                                            <label>Title</label>
+                                            <input type="text" class="form-control" name="title" value="${task.title}" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Description</label>
+                                            <textarea class="form-control" name="description" required>${task.description}</textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Reward</label>
+                                            <input type="number" class="form-control" name="reward" value="${task.reward}" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Status</label>
+                                            <select class="form-control" name="status" required>
+                                                <option value="active" ${task.status === 'active' ? 'selected' : ''}>Active</option>
+                                                <option value="inactive" ${task.status === 'inactive' ? 'selected' : ''}>Inactive</option>
+                                                <option value="completed" ${task.status === 'completed' ? 'selected' : ''}>Completed</option>
+                                            </select>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-primary" onclick="updateTask(${taskId})">Save</button>
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                showModal(modalContent);
+            });
+        }
+
+        function updateTask(taskId) {
+            const formData = new FormData(document.getElementById('editTaskForm'));
+            const data = Object.fromEntries(formData.entries());
+            
+            $.ajax({
+                url: `/api/tasks/${taskId}`,
+                type: 'PUT',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function() {
+                    closeModal();
+                    location.reload();
+                }
+            });
+        }
+
+        function deleteTask(taskId) {
+            if (confirm('Are you sure you want to delete this task?')) {
+                $.ajax({
+                    url: `/api/tasks/${taskId}`,
+                    type: 'DELETE',
+                    success: function() {
+                        location.reload();
+                    }
+                });
+            }
+        }
+    </script>
+</body>
 </html>
