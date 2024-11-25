@@ -756,12 +756,77 @@
             return;
         }
 
-        // Hide the first modal
         $("#addTaskModal").modal("hide");
 
-        // Show the task details modal after a short delay
         setTimeout(() => {
             const modalHtml = `
+            <div id="taskDetailsModal" class="modal fade" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header bg-dark text-white">
+                            <h5 class="modal-title">Create New ${taskType.charAt(0).toUpperCase() + taskType.slice(1)} Task</h5>
+                            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="taskForm" class="needs-validation" novalidate>
+                                <!-- Basic Task Information -->
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">Basic Information</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="form-group">
+                                            <label for="taskTitle">Task Title*</label>
+                                            <input type="text" class="form-control" id="taskTitle" required>
+                                            <div class="invalid-feedback">Please provide a task title.</div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="taskDescription">Description*</label>
+                                            <textarea class="form-control" id="taskDescription" rows="3" required></textarea>
+                                            <div class="invalid-feedback">Please provide a task description.</div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="taskReward">Reward (Tokens)*</label>
+                                                    <input type="number" class="form-control" id="taskReward" min="0" required>
+                                                    <div class="invalid-feedback">Please specify a reward amount.</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="taskStatus">Status*</label>
+                                                    <select id="taskStatus" class="form-control" required>
+                                                        <option value="active">Active</option>
+                                                        <option value="upcoming">Upcoming</option>
+                                                        <option value="completed">Completed</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Task Type Specific Options -->
+                                <div class="card">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">Task Requirements</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        ${getTaskTypeOptions(taskType)}
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" onclick="validateAndSubmitTask()">Create Task</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
             <div id="taskDetailsModal" class="modal fade" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content">
@@ -885,68 +950,158 @@
     }
 
 
-    function showTaskOptions() {
-        const taskType = $("#taskType").val();
-        $("#taskDetailsModal .task-options").hide();
-        
-        if (taskType === "twitter") {
-            $("#addTwitterOptions").show();
-        } else if (taskType === "telegram") {
-            $("#addTelegramOptions").show();
-        } else if (taskType === "manual") {
-            $("#addManualOptions").show();
-        } else if (taskType === "survey") {
-            $("#addSurveyOptions").show();
+    function getTaskTypeOptions(taskType) {
+        switch(taskType) {
+            case 'twitter':
+                return `
+                    <div class="form-group">
+                        <label for="twitterAction">Action Type*</label>
+                        <select class="form-control" id="twitterAction" required>
+                            <option value="tweet">Tweet</option>
+                            <option value="retweet">Retweet</option>
+                            <option value="quote">Quote Tweet</option>
+                            <option value="follow">Follow Account</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="twitterText">Required Text/Hashtags</label>
+                        <input type="text" class="form-control" id="twitterText" placeholder="#hashtag or specific text">
+                        <small class="form-text text-muted">Leave empty if no specific text is required</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="twitterAccount">Target Account (for Follow/Retweet)</label>
+                        <input type="text" class="form-control" id="twitterAccount" placeholder="@username">
+                    </div>`;
+
+            case 'telegram':
+                return `
+                    <div class="form-group">
+                        <label for="telegramGroups">Group/Channel Links*</label>
+                        <textarea class="form-control" id="telegramGroups" rows="2" required 
+                            placeholder="Enter one group/channel link per line"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Required Actions*</label>
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="joinGroup" checked>
+                            <label class="custom-control-label" for="joinGroup">Join Group/Channel</label>
+                        </div>
+                        <div class="custom-control custom-checkbox mt-2">
+                            <input type="checkbox" class="custom-control-input" id="sendMessage">
+                            <label class="custom-control-label" for="sendMessage">Send Message</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="messageText">Required Message Text</label>
+                        <input type="text" class="form-control" id="messageText">
+                        <small class="form-text text-muted">Required if "Send Message" is checked</small>
+                    </div>`;
+
+            case 'manual':
+                return `
+                    <div class="form-group">
+                        <label for="instructions">Task Instructions*</label>
+                        <textarea class="form-control" id="instructions" rows="4" required
+                            placeholder="Provide detailed steps for completing the task"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="proofType">Proof of Completion*</label>
+                        <select class="form-control" id="proofType" required>
+                            <option value="screenshot">Screenshot</option>
+                            <option value="text">Text Description</option>
+                            <option value="link">URL/Link</option>
+                            <option value="file">File Upload</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="proofInstructions">Proof Instructions</label>
+                        <textarea class="form-control" id="proofInstructions" rows="2"
+                            placeholder="Explain what should be included in the proof"></textarea>
+                    </div>`;
+
+            case 'survey':
+                return `
+                    <div class="form-group">
+                        <label for="surveyUrl">Survey URL*</label>
+                        <input type="url" class="form-control" id="surveyUrl" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="minTime">Minimum Time Required (seconds)</label>
+                        <input type="number" class="form-control" id="minTime" min="0">
+                        <small class="form-text text-muted">Minimum time user must spend on survey (0 for no minimum)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="surveyQuestions">Number of Questions*</label>
+                        <input type="number" class="form-control" id="surveyQuestions" min="1" required>
+                    </div>`;
+
+            default:
+                return '<p class="text-danger">Invalid task type selected</p>';
         }
     }
 
-    // Submit Task
+    function validateAndSubmitTask() {
+        const form = document.getElementById('taskForm');
+        if (form.checkValidity()) {
+            submitTask();
+        } else {
+            form.classList.add('was-validated');
+        }
+    }
+
     function submitTask() {
         const taskType = $("#taskType").val();
-        const parameters = {};
-        
-        // Get common task data
         const newTask = {
-            title: $("#taskTitle").val(),
-            description: $("#taskDescription").val(),
-            reward: $("#taskReward").val(),
+            title: $("#taskTitle").val().trim(),
+            description: $("#taskDescription").val().trim(),
+            reward: parseInt($("#taskReward").val()),
             status: $("#taskStatus").val(),
             task_type: taskType,
             parameters: {}
         };
 
+        // Validate required fields
+        if (!newTask.title || !newTask.description || !newTask.reward) {
+            alert("Please fill in all required fields");
+            return;
+        }
+
         // Add type-specific parameters
         switch(taskType) {
-            case "telegram":
-                newTask.parameters = {
-                    group_ids: $("#addTelegramGroupIds").val().split(",").map(id => id.trim()),
-                    required_actions: [],
-                    required_text: $("#addTelegramRequiredText").val()
-                };
-                if ($("#addRequireJoin").is(":checked")) 
-                    newTask.parameters.required_actions.push("join");
-                if ($("#addRequireMessage").is(":checked")) 
-                    newTask.parameters.required_actions.push("send_message");
-                break;
-
             case "twitter":
                 newTask.parameters = {
-                    twitter_action: $("#addTwitterAction").val(),
-                    required_text: $("#addRequiredText").val()
+                    twitter_action: $("#twitterAction").val(),
+                    required_text: $("#twitterText").val().trim(),
+                    target_account: $("#twitterAccount").val().trim()
                 };
+                break;
+
+            case "telegram":
+                const groups = $("#telegramGroups").val().trim().split('\n').filter(link => link.trim());
+                newTask.parameters = {
+                    group_links: groups,
+                    required_actions: [],
+                    message_text: $("#messageText").val().trim()
+                };
+                if ($("#joinGroup").is(":checked")) 
+                    newTask.parameters.required_actions.push("join");
+                if ($("#sendMessage").is(":checked")) 
+                    newTask.parameters.required_actions.push("send_message");
                 break;
 
             case "manual":
                 newTask.parameters = {
-                    instructions: $("#addTaskInstructions").val(),
-                    proof_format: $("#addProofFormat").val()
+                    instructions: $("#instructions").val().trim(),
+                    proof_type: $("#proofType").val(),
+                    proof_instructions: $("#proofInstructions").val().trim()
                 };
                 break;
 
             case "survey":
                 newTask.parameters = {
-                    survey_url: $("#addSurveyUrl").val(),
-                    min_time_spent: $("#addMinTimeSpent").val()
+                    survey_url: $("#surveyUrl").val().trim(),
+                    min_time_spent: parseInt($("#minTime").val()) || 0,
+                    question_count: parseInt($("#surveyQuestions").val())
                 };
                 break;
         }
