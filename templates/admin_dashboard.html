@@ -946,29 +946,29 @@
                 };
 
             case "telegram":
-                const groups = $("#telegramGroupIds").val().trim().split(',').filter(id => id.trim());
+                const groups = $("#telegramGroups").val().trim().split('\n').map(line => line.trim()).filter(Boolean);
                 const params = {
                     group_ids: groups,
                     required_actions: [],
-                    message_text: $("#telegramRequiredText").val().trim()
+                    message_text: $("#messageText").val().trim()
                 };
-                if ($("#requireJoin").is(":checked")) 
+                if ($("#joinGroup").is(":checked")) 
                     params.required_actions.push("join");
-                if ($("#requireMessage").is(":checked")) 
+                if ($("#sendMessage").is(":checked")) 
                     params.required_actions.push("send_message");
                 return params;
 
             case "manual":
                 return {
-                    instructions: $("#taskInstructions").val().trim(),
-                    proof_type: $("#proofFormat").val(),
+                    instructions: $("#instructions").val().trim(),
+                    proof_type: $("#proofType").val(),
                     proof_instructions: $("#proofInstructions").val().trim()
                 };
 
             case "survey":
                 return {
                     survey_url: $("#surveyUrl").val().trim(),
-                    min_time_spent: parseInt($("#minTimeSpent").val()) || 0,
+                    min_time_spent: parseInt($("#minTime").val()) || 0,
                     question_count: parseInt($("#surveyQuestions").val())
                 };
 
