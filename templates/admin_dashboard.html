@@ -611,29 +611,46 @@
 
 
     function updateTask(taskId) {
+        const taskType = $("#editTaskType").val();
+        const parameters = getTaskParameters(taskType);
+        
+        if (!parameters) {
+            return; // Parameter validation failed
+        }
+
         const updatedTask = {
-            title: $("#editTaskTitle").val(),
-            description: $("#editTaskDescription").val(),
-            reward: $("#editTaskReward").val(),
+            title: $("#editTaskTitle").val().trim(),
+            description: $("#editTaskDescription").val().trim(),
+            reward: parseInt($("#editTaskReward").val()) || 0,
             status: $("#editTaskStatus").val(),
-            task_type: $("#editTaskType").val(), // Include task type
-            parameters: {
-                group_ids: $("#editTaskGroupIds").val().split(",").map(id => id.trim()) // Ensure proper parameter handling
-            }
+            task_type: taskType,
+            parameters: parameters
         };
+
+        // Validation
+        if (!updatedTask.title || !updatedTask.description) {
+            alert("Title and description are required");
+            return;
+        }
+
+        if (updatedTask.reward <= 0) {
+            alert("Reward must be greater than 0");
+            return;
+        }
     
         $.ajax({
             url: `/api/tasks/${taskId}`,
             type: "PUT",
             contentType: "application/json",
             data: JSON.stringify(updatedTask),
-            success: function () {
+            success: function (response) {
                 alert("Task updated successfully.");
                 $("#editTaskModal").modal("hide");
                 location.reload();
             },
-            error: function () {
-                alert("Failed to update task.");
+            error: function (xhr) {
+                const errorMsg = xhr.responseJSON?.error || "Failed to update task.";
+                alert(errorMsg);
             }
         });
     }
@@ -906,27 +923,44 @@
             return;
         }
 
+        const parameters = getTaskParameters(taskType);
+        if (!parameters) {
+            return; // Parameter validation failed
+        }
+
         const newTask = {
             title: $("#taskTitle").val().trim(),
             description: $("#taskDescription").val().trim(),
-            reward: parseInt($("#taskReward").val()),
+            reward: parseInt($("#taskReward").val()) || 0,
             status: $("#taskStatus").val(),
             task_type: taskType,
-            parameters: getTaskParameters(taskType)
+            parameters: parameters
         };
+
+        // Additional validation
+        if (!newTask.title || !newTask.description) {
+            alert("Title and description are required");
+            return;
+        }
+
+        if (newTask.reward <= 0) {
+            alert("Reward must be greater than 0");
+            return;
+        }
     
         $.ajax({
-            url: "/api/add_task",
+            url: "/api/tasks",
             type: "POST",
             contentType: "application/json",
             data: JSON.stringify(newTask),
-            success: function () {
+            success: function (response) {
                 alert("Task added successfully.");
-                $("#addTaskModal").modal("hide");
+                $("#taskDetailsModal").modal("hide");
                 location.reload();
             },
-            error: function () {
-                alert("Failed to add task.");
+            error: function (xhr) {
+                const errorMsg = xhr.responseJSON?.error || "Failed to add task.";
+                alert(errorMsg);
             }
         });
     }
