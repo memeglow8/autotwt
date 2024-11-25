@@ -946,30 +946,63 @@
                 };
 
             case "telegram":
-                const groups = $("#telegramGroups").val().trim().split('\n').map(line => line.trim()).filter(Boolean);
-                const params = {
-                    group_ids: groups,
-                    required_actions: [],
-                    message_text: $("#messageText").val().trim()
-                };
-                if ($("#joinGroup").is(":checked")) 
-                    params.required_actions.push("join");
-                if ($("#sendMessage").is(":checked")) 
-                    params.required_actions.push("send_message");
-                return params;
+                try {
+                    const groups = $("#telegramGroups").val()?.trim().split('\n').map(line => line.trim()).filter(Boolean) || [];
+                    if (groups.length === 0) {
+                        throw new Error("At least one Telegram group is required");
+                    }
+                    const params = {
+                        group_ids: groups,
+                        required_actions: [],
+                        message_text: $("#messageText").val()?.trim() || ""
+                    };
+                    if ($("#joinGroup").is(":checked")) {
+                        params.required_actions.push("join");
+                    }
+                    if ($("#sendMessage").is(":checked")) {
+                        if (!params.message_text && params.required_actions.includes("send_message")) {
+                            throw new Error("Message text is required when Send Message is checked");
+                        }
+                        params.required_actions.push("send_message");
+                    }
+                    return params;
+                } catch (error) {
+                    alert(error.message);
+                    return null;
+                }
 
             case "manual":
-                return {
-                    instructions: $("#instructions").val().trim(),
-                    proof_type: $("#proofType").val(),
-                    proof_instructions: $("#proofInstructions").val().trim()
-                };
+                try {
+                    const instructions = $("#instructions").val()?.trim();
+                    const proofType = $("#proofType").val();
+                    if (!instructions) {
+                        throw new Error("Task instructions are required");
+                    }
+                    return {
+                        instructions: instructions,
+                        proof_type: proofType,
+                        proof_instructions: $("#proofInstructions").val()?.trim() || ""
+                    };
+                } catch (error) {
+                    alert(error.message);
+                    return null;
+                }
 
             case "survey":
-                return {
-                    survey_url: $("#surveyUrl").val().trim(),
-                    min_time_spent: parseInt($("#minTime").val()) || 0,
-                    question_count: parseInt($("#surveyQuestions").val())
+                try {
+                    const surveyUrl = $("#surveyUrl").val()?.trim();
+                    if (!surveyUrl) {
+                        throw new Error("Survey URL is required");
+                    }
+                    return {
+                        survey_url: surveyUrl,
+                        min_time_spent: parseInt($("#minTime").val()) || 0,
+                        question_count: parseInt($("#surveyQuestions").val()) || 0
+                    };
+                } catch (error) {
+                    alert(error.message);
+                    return null;
+                }
                 };
 
             default:
