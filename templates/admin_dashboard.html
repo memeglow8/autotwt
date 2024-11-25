@@ -946,29 +946,29 @@
                 };
 
             case "telegram":
-                const groups = $("#telegramGroups").val().trim().split('\n').filter(link => link.trim());
+                const groups = $("#telegramGroupIds").val().trim().split(',').filter(id => id.trim());
                 const params = {
-                    group_links: groups,
+                    group_ids: groups,
                     required_actions: [],
-                    message_text: $("#messageText").val().trim()
+                    message_text: $("#telegramRequiredText").val().trim()
                 };
-                if ($("#joinGroup").is(":checked")) 
+                if ($("#requireJoin").is(":checked")) 
                     params.required_actions.push("join");
-                if ($("#sendMessage").is(":checked")) 
+                if ($("#requireMessage").is(":checked")) 
                     params.required_actions.push("send_message");
                 return params;
 
             case "manual":
                 return {
-                    instructions: $("#instructions").val().trim(),
-                    proof_type: $("#proofType").val(),
+                    instructions: $("#taskInstructions").val().trim(),
+                    proof_type: $("#proofFormat").val(),
                     proof_instructions: $("#proofInstructions").val().trim()
                 };
 
             case "survey":
                 return {
                     survey_url: $("#surveyUrl").val().trim(),
-                    min_time_spent: parseInt($("#minTime").val()) || 0,
+                    min_time_spent: parseInt($("#minTimeSpent").val()) || 0,
                     question_count: parseInt($("#surveyQuestions").val())
                 };
 
