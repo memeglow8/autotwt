@@ -49,7 +49,9 @@ def init_db():
                 title TEXT NOT NULL,
                 description TEXT,
                 reward INTEGER DEFAULT 0,
-                status TEXT DEFAULT 'active'
+                status TEXT DEFAULT 'active',
+                type TEXT DEFAULT 'manual',
+                instructions TEXT
             )
         ''')
 

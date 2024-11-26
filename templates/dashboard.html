@@ -134,6 +134,8 @@
                         <div class="task-card">
                             <h4>{{ task.title }}</h4>
                             <p>{{ task.description }}</p>
+                            <p><strong>Type:</strong> {{ task.type|capitalize }}</p>
+                            <p><small class="text-muted">{{ task.instructions }}</small></p>
                             <button class="btn btn-gradient" onclick="viewTask({{ task.id }})">View Task</button>
                         </div>
                     </div>
