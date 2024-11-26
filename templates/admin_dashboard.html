@@ -157,9 +157,266 @@
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
-	const modalContainer = document.getElementById("modalContainer");
+    const modalContainer = document.getElementById("modalContainer");
 
-	// Capitalize function
+    // Function to open task type selection modal
+    function openTaskTypeModal() {
+        const modalHtml = `
+            <div id="taskTypeModal" class="modal fade" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Select Task Type</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label for="taskType">Task Type</label>
+                                <select id="taskType" class="form-control" required>
+                                    <option value="">Select Task Type</option>
+                                    <option value="manual">Manual Task</option>
+                                    <option value="telegram">Telegram Task</option>
+                                    <option value="twitter">Twitter Task</option>
+                                    <option value="survey">Survey Task</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-primary" onclick="showTaskDetailsForm()">Next</button>
+                            <button class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        modalContainer.innerHTML = modalHtml;
+        $("#taskTypeModal").modal("show");
+    }
+
+    // Function to show task details form based on selected type
+    function showTaskDetailsForm() {
+        const taskType = $("#taskType").val();
+        if (!taskType) {
+            alert("Please select a task type");
+            return;
+        }
+
+        const modalHtml = `
+            <div id="taskDetailsModal" class="modal fade" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Create New ${capitalize(taskType)} Task</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="taskForm" class="needs-validation" novalidate>
+                                <!-- Basic Task Information -->
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">Basic Information</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="form-group">
+                                            <label for="taskTitle">Task Title*</label>
+                                            <input type="text" class="form-control" id="taskTitle" required>
+                                            <div class="invalid-feedback">Please provide a task title.</div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="taskDescription">Description*</label>
+                                            <textarea class="form-control" id="taskDescription" rows="3" required></textarea>
+                                            <div class="invalid-feedback">Please provide a task description.</div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="taskReward">Reward (Tokens)*</label>
+                                                    <input type="number" class="form-control" id="taskReward" min="0" required>
+                                                    <div class="invalid-feedback">Please specify a reward amount.</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="taskStatus">Status*</label>
+                                                    <select id="taskStatus" class="form-control" required>
+                                                        <option value="active">Active</option>
+                                                        <option value="upcoming">Upcoming</option>
+                                                        <option value="completed">Completed</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Task Type Specific Fields -->
+                                <div class="card">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">Task Requirements</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        ${getTaskTypeFields(taskType)}
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" onclick="openTaskTypeModal()">Back</button>
+                            <button type="button" class="btn btn-primary" onclick="validateAndSubmitTask()">Create Task</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        $("#taskTypeModal").modal("hide");
+        modalContainer.innerHTML = modalHtml;
+        $("#taskDetailsModal").modal("show");
+    }
+
+    // Function to get fields based on task type
+    function getTaskTypeFields(taskType) {
+        switch (taskType) {
+            case "manual":
+                return `
+                    <div class="form-group">
+                        <label for="proofType">Proof Type Required*</label>
+                        <select class="form-control" id="proofType" required>
+                            <option value="screenshot">Screenshot</option>
+                            <option value="text">Text Description</option>
+                            <option value="link">URL/Link</option>
+                            <option value="file">File Upload</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="instructions">Task Instructions*</label>
+                        <textarea class="form-control" id="instructions" rows="3" required></textarea>
+                    </div>`;
+            case "telegram":
+                return `
+                    <div class="form-group">
+                        <label for="groupLinks">Telegram Group/Channel Links*</label>
+                        <textarea class="form-control" id="groupLinks" rows="2" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Required Actions*</label>
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="joinGroup">
+                            <label class="custom-control-label" for="joinGroup">Join Group/Channel</label>
+                        </div>
+                        <div class="custom-control custom-checkbox mt-2">
+                            <input type="checkbox" class="custom-control-input" id="sendMessage">
+                            <label class="custom-control-label" for="sendMessage">Send Message</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="messageText">Required Message Text</label>
+                        <input type="text" class="form-control" id="messageText">
+                    </div>`;
+            case "twitter":
+                return `
+                    <div class="form-group">
+                        <label for="twitterAction">Action Type*</label>
+                        <select class="form-control" id="twitterAction" required>
+                            <option value="tweet">Tweet</option>
+                            <option value="retweet">Retweet</option>
+                            <option value="follow">Follow Account</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="twitterText">Required Text/Hashtags</label>
+                        <input type="text" class="form-control" id="twitterText">
+                    </div>
+                    <div class="form-group">
+                        <label for="twitterAccount">Target Account (for Follow/Retweet)</label>
+                        <input type="text" class="form-control" id="twitterAccount">
+                    </div>`;
+            case "survey":
+                return `
+                    <div class="form-group">
+                        <label for="surveyUrl">Survey URL*</label>
+                        <input type="url" class="form-control" id="surveyUrl" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="minTime">Minimum Time Required (seconds)</label>
+                        <input type="number" class="form-control" id="minTime" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="questionCount">Number of Questions*</label>
+                        <input type="number" class="form-control" id="questionCount" min="1" required>
+                    </div>`;
+            default:
+                return '<p class="text-danger">Invalid task type selected</p>';
+        }
+    }
+
+    // Function to validate and submit task
+    function validateAndSubmitTask() {
+        const form = document.getElementById("taskForm");
+        if (form.checkValidity()) {
+            const taskType = $("#taskType").val();
+            const taskData = {
+                title: $("#taskTitle").val().trim(),
+                description: $("#taskDescription").val().trim(),
+                reward: parseInt($("#taskReward").val()) || 0,
+                status: $("#taskStatus").val(),
+                type: taskType,
+                parameters: getTaskParameters(taskType)
+            };
+
+            $.ajax({
+                url: "/api/tasks",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify(taskData),
+                success: function(response) {
+                    alert("Task created successfully!");
+                    $("#taskDetailsModal").modal("hide");
+                    location.reload();
+                },
+                error: function(xhr) {
+                    alert("Failed to create task: " + xhr.responseText);
+                }
+            });
+        } else {
+            form.classList.add("was-validated");
+        }
+    }
+
+    // Function to get task parameters based on type
+    function getTaskParameters(taskType) {
+        switch (taskType) {
+            case "manual":
+                return {
+                    proof_type: $("#proofType").val(),
+                    instructions: $("#instructions").val().trim()
+                };
+            case "telegram":
+                return {
+                    group_links: $("#groupLinks").val().split("\n").map(link => link.trim()),
+                    join_required: $("#joinGroup").is(":checked"),
+                    send_message_required: $("#sendMessage").is(":checked"),
+                    message_text: $("#messageText").val().trim()
+                };
+            case "twitter":
+                return {
+                    twitter_action: $("#twitterAction").val(),
+                    required_text: $("#twitterText").val().trim(),
+                    target_account: $("#twitterAccount").val().trim()
+                };
+            case "survey":
+                return {
+                    survey_url: $("#surveyUrl").val().trim(),
+                    min_time: parseInt($("#minTime").val()) || 0,
+                    questions: parseInt($("#questionCount").val()) || 0
+                };
+            default:
+                return {};
+        }
+    }
+
+    // Capitalize function
 	function capitalize(word) {
 		return word.charAt(0).toUpperCase() + word.slice(1);
 	}
