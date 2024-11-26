@@ -182,6 +182,43 @@
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
+        // Task Management Functions
+        function viewTask(taskId) {
+            $.ajax({
+                url: `/api/tasks/${taskId}`,
+                type: "GET",
+                success: function(response) {
+                    const modalHtml = `
+                        <div id="taskModal" class="modal fade" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Task Details</h5>
+                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                            <span aria-hidden="true">&times;</span>
+                                        </button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <h4>${response.title}</h4>
+                                        <p>${response.description}</p>
+                                        <p><strong>Reward:</strong> ${response.reward} tokens</p>
+                                        <p><strong>Status:</strong> ${response.status}</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button class="btn btn-primary" onclick="startTask(${taskId})">Start Task</button>
+                                        <button class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
+                    $("#taskModalContainer").html(modalHtml);
+                    $("#taskModal").modal("show");
+                },
+                error: function(xhr) {
+                    alert("Error loading task details: " + xhr.responseText);
+                }
+            });
+        }
         function viewTask(taskId) {
             $.ajax({
                 url: `/api/tasks/${taskId}`,
@@ -303,11 +340,7 @@
             setTimeout(() => { notification.style.display = 'none'; }, 1500);
         }
     </script>
-<!-- Modal Container -->
-<div id="dynamicTaskModal"></div>
-
-<script>
-    function viewTask(taskId) {
+        function copyReferralLink() {
         $.ajax({
             url: `/api/tasks/${taskId}`,
             type: "GET",
