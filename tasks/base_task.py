@@ -1,4 +1,7 @@
+import logging
+import psycopg2
 from abc import ABC, abstractmethod
+from config import DATABASE_URL
 
 class BaseTask(ABC):
     """Base class for all task types"""
