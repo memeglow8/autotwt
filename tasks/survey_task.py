@@ -54,6 +54,17 @@ class SurveyTask(BaseTask):
         return True
 
     def get_task_details(self):
+        min_time = self.parameters.get('min_time', 5)
+        question_count = self.parameters.get('questions', 0)
+        
+        instructions = [
+            '1. Click the survey link to open in a new tab',
+            '2. Read each question carefully and provide honest answers',
+            f'3. Spend at least {min_time} seconds completing the survey',
+            '4. Copy the completion code shown at the end',
+            '5. Submit the completion code here'
+        ]
+
         return {
             'id': self.task_id,
             'title': self.title,
@@ -61,7 +72,16 @@ class SurveyTask(BaseTask):
             'reward': self.reward,
             'type': 'survey',
             'survey_url': self.parameters.get('survey_url'),
-            'estimated_time': self.parameters.get('min_time'),
-            'question_count': self.parameters.get('questions'),
-            'requirements': self.requirements
+            'estimated_time': min_time,
+            'question_count': question_count,
+            'requirements': self.requirements,
+            'instructions': '\n'.join(instructions),
+            'verification_time': 'Instant',
+            'important_notes': [
+                'Complete survey in one session',
+                'Do not refresh page during survey',
+                'Keep completion code safe',
+                f'Survey contains {question_count} questions',
+                f'Minimum time requirement: {min_time} seconds'
+            ]
         }

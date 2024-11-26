@@ -109,6 +109,16 @@ class TelegramTask(BaseTask):
         return True  # Placeholder
 
     def get_task_details(self):
+        # Default instructions for Telegram tasks
+        default_instructions = {
+            'join': '1. Click the group/channel link\n2. Click "Join" or "Subscribe"\n3. Stay in the group/channel until task verification',
+            'message': '1. Send the required message in the group/channel\n2. Do not delete the message\n3. Wait for verification',
+            'both': '1. Join the group/channel\n2. Send the required message\n3. Stay active and do not delete message'
+        }
+
+        actions = self.parameters.get('required_actions', [])
+        task_type = 'both' if 'send_message' in actions and 'join' in actions else ('message' if 'send_message' in actions else 'join')
+
         return {
             'id': self.task_id,
             'title': self.title,
@@ -116,9 +126,16 @@ class TelegramTask(BaseTask):
             'reward': self.reward,
             'type': 'telegram',
             'group_ids': self.parameters.get('group_ids', []),
-            'required_actions': self.parameters.get('required_actions', []),
+            'required_actions': actions,
             'required_text': self.parameters.get('required_text', ''),
-            'submission_type': 'telegram_credentials'
+            'submission_type': 'telegram_credentials',
+            'instructions': default_instructions.get(task_type, default_instructions['join']),
+            'verification_time': '5-10 minutes',
+            'important_notes': [
+                'Must remain in group/channel until verification is complete',
+                'Do not delete messages sent as part of task',
+                'Ensure your Telegram privacy settings allow task verification'
+            ]
         }
         
     def __del__(self):

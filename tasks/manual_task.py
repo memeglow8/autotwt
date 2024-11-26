@@ -62,6 +62,17 @@ class ManualTask(BaseTask):
         return True
 
     def get_task_details(self):
+        # Default instructions if none provided
+        default_instructions = {
+            'screenshot': 'Take a clear screenshot showing completion of the required action. Ensure all relevant information is visible.',
+            'text': 'Provide a detailed description of how you completed the task. Include any relevant information or references.',
+            'link': 'Submit the URL/link that proves you completed the required action.',
+            'file': 'Upload the required file(s) as proof of task completion.'
+        }
+
+        proof_type = self.parameters.get('proof_type', 'text')
+        instructions = self.parameters.get('instructions', default_instructions.get(proof_type, ''))
+
         return {
             'id': self.task_id,
             'title': self.title,
@@ -69,8 +80,9 @@ class ManualTask(BaseTask):
             'reward': self.reward,
             'type': 'manual',
             'submission_type': 'proof',
-            'instructions': self.parameters.get('instructions', ''),
-            'proof_type': self.parameters.get('proof_type', 'text'),
+            'instructions': instructions,
+            'proof_type': proof_type,
             'proof_format': self.parameters.get('proof_format', 'text'),
-            'requirements': self.requirements
+            'requirements': self.requirements,
+            'verification_time': '24-48 hours'
         }

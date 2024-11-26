@@ -65,12 +65,31 @@ class TwitterTask(BaseTask):
             }
 
     def get_task_details(self):
+        # Default instructions for different Twitter actions
+        default_instructions = {
+            'tweet': '1. Create a new tweet\n2. Include required text/hashtags\n3. Submit tweet URL',
+            'retweet': '1. Find the specified tweet\n2. Click Retweet button\n3. Submit retweet URL',
+            'quote': '1. Click Quote Tweet\n2. Add required text/hashtags\n3. Submit quote tweet URL',
+            'follow': '1. Visit the specified profile\n2. Click Follow button\n3. Submit profile URL'
+        }
+
+        action_type = self.parameters.get('twitter_action', 'tweet')
+        
         return {
             'id': self.task_id,
             'title': self.title,
             'description': self.description,
             'reward': self.reward,
             'type': 'twitter',
+            'twitter_action': action_type,
             'required_text': self.parameters.get('required_text', ''),
-            'submission_type': 'tweet_link'
+            'target_account': self.parameters.get('target_account', ''),
+            'submission_type': 'tweet_link',
+            'instructions': default_instructions.get(action_type, default_instructions['tweet']),
+            'verification_time': '1-2 minutes',
+            'important_notes': [
+                'Tweet/Retweet must remain public until verification',
+                'Account must be public during verification',
+                'Follow tasks require maintaining follow status'
+            ]
         }
