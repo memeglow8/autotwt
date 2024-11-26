@@ -306,15 +306,45 @@ def delete_user(user_id):
         logging.error(f"Error deleting user {user_id}: {e}")
         return {"error": "Failed to delete user"}, 500
 
-@app.route('/api/tasks', methods=['GET'])
-def get_all_tasks():
-    """Retrieve all tasks and the user's task statuses."""
-    username = session.get('username')
-    if not username:
-        return {"error": "User not authenticated"}, 401
+@app.route('/api/tasks', methods=['GET', 'POST'])
+def handle_tasks():
+    """Handle task operations."""
+    if request.method == 'GET':
+        username = session.get('username')
+        if not username:
+            return {"error": "User not authenticated"}, 401
 
-    tasks = get_user_tasks(username)
-    return jsonify(tasks), 200
+        tasks = get_user_tasks(username)
+        return jsonify(tasks), 200
+        
+    elif request.method == 'POST':
+        if not session.get('is_admin'):
+            return {"error": "Unauthorized"}, 401
+            
+        try:
+            data = request.get_json()
+            conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO tasks (title, description, reward, status)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+            """, (
+                data['title'],
+                data['description'],
+                int(data['reward']),
+                data['status']
+            ))
+            
+            task_id = cursor.fetchone()[0]
+            conn.commit()
+            conn.close()
+            
+            return {"message": "Task created successfully", "id": task_id}, 201
+        except Exception as e:
+            logging.error(f"Error creating task: {e}")
+            return {"error": "Failed to create task"}, 500
 
 @app.route('/api/tasks/start/<int:task_id>', methods=['POST'])
 def start_task(task_id):
