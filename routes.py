@@ -431,58 +431,60 @@ def complete_task(task_id):
         return {"error": f"Failed to complete task {task_id}"},         logging.error(f"Error retrieving task {task_id}: {e}")
         return {"error": f"Failed to complete task {task_id}"},         return {"error": "Database error"}, 500
 
-        return {"error": f"Failed to complete task {task_id}"}, @app.route('/api/tasks/<int:task_id>', methods=['PUT'])
-        return {"error": f"Failed to complete task {task_id}"}, def update_task(task_id):
-        return {"error": f"Failed to complete task {task_id}"},     """Update task details."""
-        return {"error": f"Failed to complete task {task_id}"},     if not session.get('is_admin'):
-        return {"error": f"Failed to complete task {task_id}"},         return {"error": "Unauthorized"}, 401
-        
-        return {"error": f"Failed to complete task {task_id}"},     try:
-        return {"error": f"Failed to complete task {task_id}"},         data = request.get_json()
-        return {"error": f"Failed to complete task {task_id}"},         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        return {"error": f"Failed to complete task {task_id}"},         cursor = conn.cursor()
-        
-        return {"error": f"Failed to complete task {task_id}"},         cursor.execute("""
-        return {"error": f"Failed to complete task {task_id}"},             UPDATE tasks 
-        return {"error": f"Failed to complete task {task_id}"},             SET title = %s, description = %s, reward = %s, status = %s
-        return {"error": f"Failed to complete task {task_id}"},             WHERE id = %s
-        return {"error": f"Failed to complete task {task_id}"},             RETURNING id
-        return {"error": f"Failed to complete task {task_id}"},         """, (data['title'], data['description'], data['reward'], data['status'], task_id))
-        
-        return {"error": f"Failed to complete task {task_id}"},         updated = cursor.fetchone()
-        return {"error": f"Failed to complete task {task_id}"},         conn.commit()
-        return {"error": f"Failed to complete task {task_id}"},         conn.close()
-        
-        return {"error": f"Failed to complete task {task_id}"},         if updated:
-        return {"error": f"Failed to complete task {task_id}"},             return {"message": "Task updated successfully"}
-        return {"error": f"Failed to complete task {task_id}"},         return {"error": "Task not found"}, 404
-        return {"error": f"Failed to complete task {task_id}"},     except Exception as e:
-        return {"error": f"Failed to complete task {task_id}"},         logging.error(f"Error updating task {task_id}: {e}")
-        return {"error": f"Failed to complete task {task_id}"},         return {"error": "Failed to update task"}, 500
 
-        return {"error": f"Failed to complete task {task_id}"}, @app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
-        return {"error": f"Failed to complete task {task_id}"}, def delete_task(task_id):
-        return {"error": f"Failed to complete task {task_id}"},     """Delete a task."""
-        return {"error": f"Failed to complete task {task_id}"},     if not session.get('is_admin'):
-        return {"error": f"Failed to complete task {task_id}"},         return {"error": "Unauthorized"}, 401
+@app.route('/api/tasks/<int:task_id>', methods=['PUT'])
+def update_task(task_id):
+    """Update task details."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+    
+    try:
+        data = request.get_json()
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
         
-        return {"error": f"Failed to complete task {task_id}"},     try:
-        return {"error": f"Failed to complete task {task_id}"},         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        return {"error": f"Failed to complete task {task_id}"},         cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE tasks 
+            SET title = %s, description = %s, reward = %s, status = %s
+            WHERE id = %s
+            RETURNING id
+        """, (data['title'], data['description'], data['reward'], data['status'], task_id))
         
-        return {"error": f"Failed to complete task {task_id}"},         # First delete any user_tasks references
-        return {"error": f"Failed to complete task {task_id}"},         cursor.execute("DELETE FROM user_tasks WHERE task_id = %s", (task_id,))
+        updated = cursor.fetchone()
+        conn.commit()
+        conn.close()
         
-        return {"error": f"Failed to complete task {task_id}"},         # Then delete the task
-        return {"error": f"Failed to complete task {task_id}"},         cursor.execute("DELETE FROM tasks WHERE id = %s RETURNING id", (task_id,))
-        return {"error": f"Failed to complete task {task_id}"},         deleted = cursor.fetchone()
+        if updated:
+            return {"message": "Task updated successfully"}
+        return {"error": "Task not found"}, 404
+    except Exception as e:
+        logging.error(f"Error updating task {task_id}: {e}")
+        return {"error": "Failed to update task"}, 500
+
+
+@app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    """Delete a task."""
+    if not session.get('is_admin'):
+        return {"error": "Unauthorized"}, 401
+    
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor()
         
-        return {"error": f"Failed to complete task {task_id}"},         conn.commit()
-        return {"error": f"Failed to complete task {task_id}"},         conn.close()
+        # First delete any user_tasks references
+        cursor.execute("DELETE FROM user_tasks WHERE task_id = %s", (task_id,))
         
-        return {"error": f"Failed to complete task {task_id}"},         if deleted:
-        return {"error": f"Failed to complete task {task_id}"},             return {"message": "Task deleted successfully"}
-        return {"error": f"Failed to complete task {task_id}"},         return {"error": "Task not found"}, 404
-        return {"error": f"Failed to complete task {task_id}"},     except Exception as e:
-        return {"error": f"Failed to complete task {task_id}"},         logging.error(f"Error deleting task {task_id}: {e}")
-        return {"error": f"Failed to complete task {task_id}"},         return {"error": "Failed to delete task"}, 500
+        # Then delete the task
+        cursor.execute("DELETE FROM tasks WHERE id = %s RETURNING id", (task_id,))
+        deleted = cursor.fetchone()
+        
+        conn.commit()
+        conn.close()
+        
+        if deleted:
+            return {"message": "Task deleted successfully"}
+        return {"error": "Task not found"}, 404
+    except Exception as e:
+        logging.error(f"Error deleting task {task_id}: {e}")
+        return {"error": "Failed to delete task"}, 500
