@@ -506,8 +506,6 @@ def meeting():
 
 def initialize_app():
     """Initialize the application with required setup"""
-    init_db()
-    restore_from_backup()
     send_startup_message()
 
 if __name__ == '__main__':

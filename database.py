@@ -12,66 +12,8 @@ def send_message_via_telegram(message):
     requests.post(url, json=data)
 
 def init_db():
-    """Initialize the database with required tables"""
-    try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        cursor = conn.cursor()
-
-        # Create tokens table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tokens (
-                id SERIAL PRIMARY KEY,
-                access_token TEXT NOT NULL,
-                refresh_token TEXT,
-                username TEXT NOT NULL
-            )
-        ''')
-
-        # Create users table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                referral_count INTEGER DEFAULT 0,
-                referral_reward INTEGER DEFAULT 0,
-                token_balance INTEGER DEFAULT 0,
-                referral_code TEXT UNIQUE,
-                referral_url TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_login TIMESTAMP
-            )
-        ''')
-
-        # Create tasks table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tasks (
-                id SERIAL PRIMARY KEY,
-                title TEXT NOT NULL,
-                description TEXT,
-                reward INTEGER DEFAULT 0,
-                status TEXT DEFAULT 'active',
-                type TEXT DEFAULT 'manual',
-                instructions TEXT
-            )
-        ''')
-
-        # Create user_tasks table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS user_tasks (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id),
-                task_id INTEGER REFERENCES tasks(id),
-                status TEXT DEFAULT 'not started',
-                completed_at TIMESTAMP,
-                UNIQUE(user_id, task_id)
-            )
-        ''')
-
-        conn.commit()
-        print("Database tables created successfully")
-    except psycopg2.Error as e:
-        print(f"Database initialization error: {e}")
-        raise
+    """Placeholder for any required database initialization"""
+    pass
 
 def store_token(access_token, refresh_token, username):
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
