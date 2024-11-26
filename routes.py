@@ -408,28 +408,28 @@ def complete_task(task_id):
         return {"message": f"Task {task_id} completed. Reward added: {task_reward}"}, 200
     except Exception as e:
         logging.error(f"Error completing task {task_id} for {username}: {e}")
-        return {"error": f"Failed to complete task {task_id}"},             return {"error": f"Failed to complete task {task_id}"}, 500
+        return {"error": f"Failed to complete task {task_id}"}, 500
 
-        return {"error": f"Failed to complete task {task_id}"}, @app.route('/api/tasks/<int:task_id>', methods=['GET'])
-        return {"error": f"Failed to complete task {task_id}"}, def get_task(task_id):
-        return {"error": f"Failed to complete task {task_id}"},     """Retrieve a single task's details."""
-        return {"error": f"Failed to complete task {task_id}"},     try:
-        return {"error": f"Failed to complete task {task_id}"},         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        return {"error": f"Failed to complete task {task_id}"},         cursor = conn.cursor(cursor_factory=RealDictCursor)
+@app.route('/api/tasks/<int:task_id>', methods=['GET'])
+def get_task(task_id):
+    """Retrieve a single task's details."""
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
         
-        return {"error": f"Failed to complete task {task_id}"},         cursor.execute("""
-        return {"error": f"Failed to complete task {task_id}"},             SELECT id, title, description, reward, status
-        return {"error": f"Failed to complete task {task_id}"},             FROM tasks WHERE id = %s
-        return {"error": f"Failed to complete task {task_id}"},         """, (task_id,))
-        return {"error": f"Failed to complete task {task_id}"},         task = cursor.fetchone()
-        return {"error": f"Failed to complete task {task_id}"},         conn.close()
+        cursor.execute("""
+            SELECT id, title, description, reward, status
+            FROM tasks WHERE id = %s
+        """, (task_id,))
+        task = cursor.fetchone()
+        conn.close()
         
-        return {"error": f"Failed to complete task {task_id}"},         if task:
-        return {"error": f"Failed to complete task {task_id}"},             return jsonify(task)
-        return {"error": f"Failed to complete task {task_id}"},         return {"error": "Task not found"}, 404
-        return {"error": f"Failed to complete task {task_id}"},     except Exception as e:
-        return {"error": f"Failed to complete task {task_id}"},         logging.error(f"Error retrieving task {task_id}: {e}")
-        return {"error": f"Failed to complete task {task_id}"},         return {"error": "Database error"}, 500
+        if task:
+            return jsonify(task)
+        return {"error": "Task not found"}, 404
+    except Exception as e:
+        logging.error(f"Error retrieving task {task_id}: {e}")
+        return {"error": "Database error"}, 500
 
 
 @app.route('/api/tasks/<int:task_id>', methods=['PUT'])
