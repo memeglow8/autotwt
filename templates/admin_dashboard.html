@@ -165,21 +165,77 @@
             url: `/api/tasks/${taskId}`,
             type: "GET",
             success: function(response) {
+                let taskSpecificDetails = '';
+                
+                // Add task type specific details
+                switch(response.type) {
+                    case 'manual':
+                        taskSpecificDetails = `
+                            <div class="task-specific-section">
+                                <h6 class="mb-3">Manual Task Requirements</h6>
+                                <p><strong>Proof Type:</strong> ${response.proof_type || 'Screenshot'}</p>
+                                <p><strong>Instructions:</strong> ${response.instructions || 'Follow the steps and submit proof'}</p>
+                                <p><strong>Verification Process:</strong> Admin will review submission</p>
+                            </div>`;
+                        break;
+                    case 'telegram':
+                        taskSpecificDetails = `
+                            <div class="task-specific-section">
+                                <h6 class="mb-3">Telegram Task Requirements</h6>
+                                <p><strong>Group Links:</strong> ${response.group_links ? response.group_links.join('<br>') : 'No groups specified'}</p>
+                                <p><strong>Required Actions:</strong></p>
+                                <ul>
+                                    ${response.join_required ? '<li>Join group/channel</li>' : ''}
+                                    ${response.send_message_required ? '<li>Send message</li>' : ''}
+                                </ul>
+                                ${response.message_text ? `<p><strong>Required Message:</strong> ${response.message_text}</p>` : ''}
+                            </div>`;
+                        break;
+                    case 'twitter':
+                        taskSpecificDetails = `
+                            <div class="task-specific-section">
+                                <h6 class="mb-3">Twitter Task Requirements</h6>
+                                <p><strong>Action Type:</strong> ${response.twitter_action || 'Tweet'}</p>
+                                ${response.required_text ? `<p><strong>Required Text/Hashtags:</strong> ${response.required_text}</p>` : ''}
+                                ${response.target_account ? `<p><strong>Target Account:</strong> ${response.target_account}</p>` : ''}
+                                <p><strong>Verification:</strong> Automatic via Twitter API</p>
+                            </div>`;
+                        break;
+                    case 'survey':
+                        taskSpecificDetails = `
+                            <div class="task-specific-section">
+                                <h6 class="mb-3">Survey Task Requirements</h6>
+                                <p><strong>Survey URL:</strong> <a href="${response.survey_url}" target="_blank">${response.survey_url}</a></p>
+                                <p><strong>Estimated Time:</strong> ${response.min_time || 'Not specified'} seconds</p>
+                                <p><strong>Number of Questions:</strong> ${response.question_count || 'Not specified'}</p>
+                                <p><strong>Completion Verification:</strong> Submit completion code</p>
+                            </div>`;
+                        break;
+                    default:
+                        taskSpecificDetails = '<p>No specific requirements for this task type.</p>';
+                }
+
                 const modalHtml = `
                     <div id="viewTaskModal" class="modal fade" tabindex="-1">
-                        <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-dialog modal-dialog-centered modal-lg">
                             <div class="modal-content">
-                                <div class="modal-header">
+                                <div class="modal-header bg-light">
                                     <h5 class="modal-title">Task Details</h5>
                                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                         <span aria-hidden="true">&times;</span>
                                     </button>
                                 </div>
                                 <div class="modal-body">
-                                    <p><strong>Title:</strong> ${response.title}</p>
-                                    <p><strong>Description:</strong> ${response.description}</p>
-                                    <p><strong>Reward:</strong> ${response.reward} tokens</p>
-                                    <p><strong>Status:</strong> ${response.status}</p>
+                                    <div class="basic-info mb-4">
+                                        <h6 class="mb-3">Basic Information</h6>
+                                        <p><strong>Title:</strong> ${response.title}</p>
+                                        <p><strong>Description:</strong> ${response.description}</p>
+                                        <p><strong>Reward:</strong> ${response.reward} tokens</p>
+                                        <p><strong>Status:</strong> <span class="badge badge-${response.status === 'active' ? 'success' : 'secondary'}">${response.status}</span></p>
+                                        <p><strong>Task Type:</strong> ${response.type || 'Standard'}</p>
+                                    </div>
+                                    <hr>
+                                    ${taskSpecificDetails}
                                 </div>
                                 <div class="modal-footer">
                                     <button class="btn btn-secondary" data-dismiss="modal">Close</button>
