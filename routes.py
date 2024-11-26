@@ -89,6 +89,7 @@ def dashboard():
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
+    # Get user stats
     cursor.execute("SELECT token_balance as total_tokens, referral_count, referral_reward FROM users WHERE username = %s", (username,))
     user_stats = cursor.fetchone()
     
@@ -103,9 +104,32 @@ def dashboard():
     else:
         user_stats['referral_url'] = f"{request.url_root}?ref={username}"
     
+    # Get active tasks
+    cursor.execute("""
+        SELECT t.id, t.title, t.description, t.reward, t.status,
+               COALESCE(ut.status, 'not_started') as user_status
+        FROM tasks t
+        LEFT JOIN user_tasks ut ON t.id = ut.task_id
+        LEFT JOIN users u ON ut.user_id = u.id AND u.username = %s
+        WHERE t.status = 'active'
+    """, (username,))
+    active_tasks = cursor.fetchall()
+    
+    # Get upcoming tasks
+    cursor.execute("""
+        SELECT id, title, description, reward, status
+        FROM tasks 
+        WHERE status = 'upcoming'
+    """)
+    upcoming_tasks = cursor.fetchall()
+    
     conn.close()
     
-    return render_template('dashboard.html', username=username, user_stats=user_stats)
+    return render_template('dashboard.html', 
+                         username=username, 
+                         user_stats=user_stats,
+                         active_tasks=active_tasks,
+                         upcoming_tasks=upcoming_tasks)
 
 @app.route('/welcome')
 def welcome():
