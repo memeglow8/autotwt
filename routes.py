@@ -106,8 +106,8 @@ def dashboard():
     
     # Get active tasks
     cursor.execute("""
-        SELECT t.id, t.title, t.description, t.reward, t.status,
-               COALESCE(ut.status, 'not_started') as user_status
+        SELECT t.id, t.title, t.description, t.reward, t.status, t.type,
+               t.instructions, COALESCE(ut.status, 'not_started') as user_status
         FROM tasks t
         LEFT JOIN user_tasks ut ON t.id = ut.task_id
         LEFT JOIN users u ON ut.user_id = u.id AND u.username = %s
