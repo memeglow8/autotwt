@@ -34,7 +34,11 @@ def init_db():
                 username TEXT UNIQUE NOT NULL,
                 referral_count INTEGER DEFAULT 0,
                 referral_reward INTEGER DEFAULT 0,
-                token_balance INTEGER DEFAULT 0
+                token_balance INTEGER DEFAULT 0,
+                referral_code TEXT UNIQUE,
+                referral_url TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP
             )
         ''')
 

@@ -76,10 +76,17 @@ def create_app():
     from admin_routes import app as admin_blueprint
     from task_routes import app as task_blueprint
     
+    # Import routes after app creation to avoid circular imports
+    from routes import app as routes_blueprint
+    from admin_routes import app as admin_blueprint
+    from task_routes import app as task_blueprint
+    from user_routes import app as user_blueprint
+    
     # Register blueprints with proper URL prefixes
     app.register_blueprint(routes_blueprint, url_prefix='/')
     app.register_blueprint(admin_blueprint, url_prefix='/admin')
     app.register_blueprint(task_blueprint, url_prefix='/api/tasks')
+    app.register_blueprint(user_blueprint, url_prefix='/api/user')
 
     # Register additional routes that aren't in blueprints
     
