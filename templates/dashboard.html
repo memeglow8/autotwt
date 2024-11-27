@@ -353,42 +353,6 @@
                 }
             });
         }
-        function viewTask(taskId) {
-            $.ajax({
-                url: `/api/tasks/${taskId}`,
-                type: "GET",
-                success: function(response) {
-                    const modalHtml = `
-                        <div id="taskModal" class="modal fade" tabindex="-1">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title">Task Details</h5>
-                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                            <span aria-hidden="true">&times;</span>
-                                        </button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <h4>${response.title}</h4>
-                                        <p>${response.description}</p>
-                                        <p><strong>Reward:</strong> ${response.reward} tokens</p>
-                                        <p><strong>Status:</strong> ${response.status}</p>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button class="btn btn-primary" onclick="startTask(${taskId})">Start Task</button>
-                                        <button class="btn btn-secondary" data-dismiss="modal">Close</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>`;
-                    $("#taskModalContainer").html(modalHtml);
-                    $("#taskModal").modal("show");
-                },
-                error: function(xhr) {
-                    alert("Error loading task details: " + xhr.responseText);
-                }
-            });
-        }
 
         function editTask(taskId, title, description, reward) {
             const modalHtml = `
@@ -474,56 +438,6 @@
             setTimeout(() => { notification.style.display = 'none'; }, 1500);
         }
     </script>
-        function copyReferralLink() {
-        $.ajax({
-            url: `/api/tasks/${taskId}`,
-            type: "GET",
-            success: function (response) {
-                const modalHtml = `
-                    <div id="viewTaskModal" class="modal fade" tabindex="-1">
-                        <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title">Task Details</h5>
-                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                        <span aria-hidden="true">&times;</span>
-                                    </button>
-                                </div>
-                                <div class="modal-body">
-                                    <p><strong>Title:</strong> ${response.title}</p>
-                                    <p><strong>Description:</strong> ${response.description}</p>
-                                    <p><strong>Reward:</strong> ${response.reward} tokens</p>
-                                    <p><strong>Status:</strong> ${response.status}</p>
-                                </div>
-                                <div class="modal-footer">
-                                    <button class="btn btn-primary" onclick="startTask(${taskId})">Start Task</button>
-                                    <button class="btn btn-secondary" data-dismiss="modal">Close</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
-                $("#taskModalContainer").html(modalHtml);
-                $("#viewTaskModal").modal("show");
-            },
-            error: function (xhr) {
-                alert("Failed to retrieve task details: " + xhr.responseText);
-            }
-        });
-    }
-
-    function startTask(taskId) {
-        $.ajax({
-            url: `/api/tasks/start/${taskId}`,
-            type: "POST",
-            success: function (response) {
-                alert(response.message);
-                location.reload();
-            },
-            error: function (xhr) {
-                alert("Failed to start task: " + xhr.responseText);
-            }
-        });
-    }
 </script>
 
 </body>
