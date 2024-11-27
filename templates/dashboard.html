@@ -135,8 +135,57 @@
                             <h4>{{ task.title }}</h4>
                             <p>{{ task.description }}</p>
                             <p><strong>Type:</strong> {{ task.type|capitalize }}</p>
-                            <p><small class="text-muted">{{ task.instructions }}</small></p>
-                            <button class="btn btn-gradient" onclick="viewTask({{ task.id }})">View Task</button>
+                            <p><strong>Reward:</strong> {{ task.reward }} tokens</p>
+                            <p><strong>Status:</strong> {{ task.user_status|capitalize }}</p>
+                            
+                            {% if task.type == 'manual' %}
+                                <div class="task-details manual-task">
+                                    <p><strong>Proof Required:</strong> {{ task.type_details.proof_type|capitalize }}</p>
+                                    <p><small class="text-muted">{{ task.type_details.instructions }}</small></p>
+                                </div>
+                            {% elif task.type == 'telegram' %}
+                                <div class="task-details telegram-task">
+                                    <p><strong>Required Actions:</strong></p>
+                                    <ul>
+                                        {% if task.type_details.join_required %}
+                                            <li>Join group/channel</li>
+                                        {% endif %}
+                                        {% if task.type_details.send_message_required %}
+                                            <li>Send message</li>
+                                        {% endif %}
+                                    </ul>
+                                    {% if task.type_details.message_text %}
+                                        <p><small>Required message: {{ task.type_details.message_text }}</small></p>
+                                    {% endif %}
+                                </div>
+                            {% elif task.type == 'twitter' %}
+                                <div class="task-details twitter-task">
+                                    <p><strong>Action:</strong> {{ task.type_details.twitter_action|capitalize }}</p>
+                                    {% if task.type_details.required_text %}
+                                        <p><strong>Required Text:</strong> {{ task.type_details.required_text }}</p>
+                                    {% endif %}
+                                    {% if task.type_details.target_account %}
+                                        <p><strong>Target Account:</strong> {{ task.type_details.target_account }}</p>
+                                    {% endif %}
+                                </div>
+                            {% elif task.type == 'survey' %}
+                                <div class="task-details survey-task">
+                                    <p><strong>Estimated Time:</strong> {{ task.type_details.min_time }} seconds</p>
+                                    <p><strong>Questions:</strong> {{ task.type_details.question_count }}</p>
+                                    <p><a href="{{ task.type_details.survey_url }}" target="_blank" class="btn btn-sm btn-outline-primary">Open Survey</a></p>
+                                </div>
+                            {% endif %}
+                            
+                            <div class="task-actions mt-3">
+                                {% if task.user_status == 'not_started' %}
+                                    <button class="btn btn-gradient" onclick="startTask({{ task.id }})">Start Task</button>
+                                {% elif task.user_status == 'in_progress' %}
+                                    <button class="btn btn-gradient" onclick="submitTask({{ task.id }})">Submit Proof</button>
+                                {% else %}
+                                    <button class="btn btn-secondary" disabled>{{ task.user_status|capitalize }}</button>
+                                {% endif %}
+                                <button class="btn btn-outline-primary ml-2" onclick="viewTask({{ task.id }})">View Details</button>
+                            </div>
                         </div>
                     </div>
                     {% endfor %}

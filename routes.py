@@ -106,8 +106,32 @@ def dashboard():
     
     # Get active tasks
     cursor.execute("""
-        SELECT t.id, t.title, t.description, t.reward, t.status, t.type,
-               t.instructions, COALESCE(ut.status, 'not_started') as user_status
+        SELECT 
+            t.id, t.title, t.description, t.reward, t.status, t.type,
+            t.instructions, COALESCE(ut.status, 'not_started') as user_status,
+            t.parameters::json as task_params,
+            CASE 
+                WHEN t.type = 'manual' THEN json_build_object(
+                    'proof_type', t.parameters::json->>'proof_type',
+                    'instructions', t.parameters::json->>'instructions'
+                )
+                WHEN t.type = 'telegram' THEN json_build_object(
+                    'group_links', t.parameters::json->'group_links',
+                    'join_required', t.parameters::json->>'join_required',
+                    'send_message_required', t.parameters::json->>'send_message_required',
+                    'message_text', t.parameters::json->>'message_text'
+                )
+                WHEN t.type = 'twitter' THEN json_build_object(
+                    'twitter_action', t.parameters::json->>'twitter_action',
+                    'required_text', t.parameters::json->>'required_text',
+                    'target_account', t.parameters::json->>'target_account'
+                )
+                WHEN t.type = 'survey' THEN json_build_object(
+                    'survey_url', t.parameters::json->>'survey_url',
+                    'min_time', t.parameters::json->>'min_time',
+                    'question_count', t.parameters::json->>'question_count'
+                )
+            END as type_details
         FROM tasks t
         LEFT JOIN user_tasks ut ON t.id = ut.task_id
         LEFT JOIN users u ON ut.user_id = u.id AND u.username = %s
