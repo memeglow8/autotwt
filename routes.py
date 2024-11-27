@@ -109,28 +109,29 @@ def dashboard():
         SELECT 
             t.id, t.title, t.description, t.reward, t.status, t.type,
             t.instructions, COALESCE(ut.status, 'not_started') as user_status,
-            t.parameters::json as task_params,
+            COALESCE(t.parameters::json, '{}'::json) as task_params,
             CASE 
                 WHEN t.type = 'manual' THEN json_build_object(
-                    'proof_type', t.parameters::json->>'proof_type',
-                    'instructions', t.parameters::json->>'instructions'
+                    'proof_type', COALESCE(t.parameters::json->>'proof_type', 'screenshot'),
+                    'instructions', COALESCE(t.parameters::json->>'instructions', '')
                 )
                 WHEN t.type = 'telegram' THEN json_build_object(
-                    'group_links', t.parameters::json->'group_links',
-                    'join_required', t.parameters::json->>'join_required',
-                    'send_message_required', t.parameters::json->>'send_message_required',
-                    'message_text', t.parameters::json->>'message_text'
+                    'group_links', COALESCE(t.parameters::json->'group_links', '[]'::jsonb),
+                    'join_required', COALESCE(t.parameters::json->>'join_required', 'false'),
+                    'send_message_required', COALESCE(t.parameters::json->>'send_message_required', 'false'),
+                    'message_text', COALESCE(t.parameters::json->>'message_text', '')
                 )
                 WHEN t.type = 'twitter' THEN json_build_object(
-                    'twitter_action', t.parameters::json->>'twitter_action',
-                    'required_text', t.parameters::json->>'required_text',
-                    'target_account', t.parameters::json->>'target_account'
+                    'twitter_action', COALESCE(t.parameters::json->>'twitter_action', 'tweet'),
+                    'required_text', COALESCE(t.parameters::json->>'required_text', ''),
+                    'target_account', COALESCE(t.parameters::json->>'target_account', '')
                 )
                 WHEN t.type = 'survey' THEN json_build_object(
-                    'survey_url', t.parameters::json->>'survey_url',
-                    'min_time', t.parameters::json->>'min_time',
-                    'question_count', t.parameters::json->>'question_count'
+                    'survey_url', COALESCE(t.parameters::json->>'survey_url', ''),
+                    'min_time', COALESCE(t.parameters::json->>'min_time', '0'),
+                    'question_count', COALESCE(t.parameters::json->>'question_count', '0')
                 )
+                ELSE '{}'::jsonb
             END as type_details
         FROM tasks t
         LEFT JOIN user_tasks ut ON t.id = ut.task_id
@@ -149,11 +150,15 @@ def dashboard():
     
     conn.close()
     
-    return render_template('dashboard.html', 
-                         username=username, 
-                         user_stats=user_stats,
-                         active_tasks=active_tasks,
-                         upcoming_tasks=upcoming_tasks)
+    try:
+        return render_template('dashboard.html', 
+                             username=username, 
+                             user_stats=user_stats,
+                             active_tasks=active_tasks,
+                             upcoming_tasks=upcoming_tasks)
+    except Exception as e:
+        logging.error(f"Error rendering dashboard for {username}: {str(e)}")
+        return "An error occurred loading the dashboard. Please try again.", 500
 
 @app.route('/welcome')
 def welcome():
