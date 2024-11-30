@@ -157,7 +157,10 @@ def dashboard():
         LEFT JOIN users u ON ut.user_id = u.id AND u.username = %s
         WHERE t.status = 'active'
     """, (username,))
-    active_tasks = cursor.fetchall()
+        active_tasks = cursor.fetchall()
+    except Exception as e:
+        logging.error(f"Error getting active tasks: {str(e)}")
+        active_tasks = []
     
     try:
         # Get upcoming tasks
