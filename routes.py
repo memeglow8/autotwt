@@ -89,27 +89,46 @@ def dashboard():
     conn = psycopg2.connect(DATABASE_URL, sslmode='require')
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    # Get user stats
-    cursor.execute("SELECT token_balance as total_tokens, referral_count, referral_reward FROM users WHERE username = %s", (username,))
-    user_stats = cursor.fetchone()
-    
-    if not user_stats:
-        # If user not found, provide default values
+    try:
+        # Get user stats
+        cursor.execute("""
+            SELECT 
+                COALESCE(token_balance, 0) as total_tokens,
+                COALESCE(referral_count, 0) as referral_count,
+                COALESCE(referral_reward, 0) as referral_reward
+            FROM users 
+            WHERE username = %s
+        """, (username,))
+        user_stats = cursor.fetchone()
+        
+        if not user_stats:
+            # If user not found, create new user record
+            cursor.execute("""
+                INSERT INTO users (username, token_balance, referral_count, referral_reward)
+                VALUES (%s, 0, 0, 0)
+                RETURNING token_balance as total_tokens, referral_count, referral_reward
+            """, (username,))
+            conn.commit()
+            user_stats = cursor.fetchone()
+        
+        # Add referral URL to stats
+        user_stats['referral_url'] = f"{request.url_root}?ref={username}"
+    except Exception as e:
+        logging.error(f"Error getting user stats for {username}: {str(e)}")
         user_stats = {
             'total_tokens': 0,
             'referral_count': 0,
             'referral_reward': 0,
             'referral_url': f"{request.url_root}?ref={username}"
         }
-    else:
-        user_stats['referral_url'] = f"{request.url_root}?ref={username}"
     
-    # Get active tasks
-    cursor.execute("""
-        SELECT 
-            t.id, t.title, t.description, t.reward, t.status, t.type,
-            t.instructions, COALESCE(ut.status, 'not_started') as user_status,
-            COALESCE(t.parameters::json, '{}'::json) as task_params,
+    try:
+        # Get active tasks
+        cursor.execute("""
+            SELECT 
+                t.id, t.title, t.description, t.reward, t.status, t.type,
+                t.instructions, COALESCE(ut.status, 'not_started') as user_status,
+                COALESCE(t.parameters::json, '{}'::json) as task_params,
             CASE 
                 WHEN t.type = 'manual' THEN json_build_object(
                     'proof_type', COALESCE(t.parameters::json->>'proof_type', 'screenshot'),
@@ -140,15 +159,19 @@ def dashboard():
     """, (username,))
     active_tasks = cursor.fetchall()
     
-    # Get upcoming tasks
-    cursor.execute("""
-        SELECT id, title, description, reward, status
-        FROM tasks 
-        WHERE status = 'upcoming'
-    """)
-    upcoming_tasks = cursor.fetchall()
-    
-    conn.close()
+    try:
+        # Get upcoming tasks
+        cursor.execute("""
+            SELECT id, title, description, reward, status
+            FROM tasks 
+            WHERE status = 'upcoming'
+        """)
+        upcoming_tasks = cursor.fetchall()
+    except Exception as e:
+        logging.error(f"Error getting upcoming tasks: {str(e)}")
+        upcoming_tasks = []
+    finally:
+        conn.close()
     
     try:
         return render_template('dashboard.html', 
