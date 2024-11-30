@@ -129,7 +129,7 @@ def dashboard():
                 t.id, t.title, t.description, t.reward, t.status, t.type,
                 COALESCE(ut.status, 'not_started') as user_status,
                 t.parameters::json as task_params,
-            CASE
+                CASE
                 WHEN t.type = 'manual' THEN json_build_object(
                     'proof_type', COALESCE(t.parameters::json->>'proof_type', 'screenshot'),
                     'instructions', COALESCE(t.parameters::json->>'instructions', '')
@@ -153,8 +153,9 @@ def dashboard():
                 ELSE '{}'::jsonb
             END as type_details
         FROM tasks t
-        LEFT JOIN users u ON u.username = %s
+        LEFT JOIN users u ON u.username = %s 
         LEFT JOIN user_tasks ut ON t.id = ut.task_id AND ut.user_id = u.id
+        WHERE t.status = 'active'
         WHERE t.status = 'active'
     """, (username,))
         active_tasks = cursor.fetchall()
