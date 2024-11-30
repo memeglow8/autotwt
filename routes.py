@@ -125,6 +125,7 @@ def dashboard():
     try:
         # Get active tasks with detailed logging
         logging.info(f"Fetching active tasks for user: {username}")
+        print(f"\nFetching active tasks for user: {username}")
         
         cursor.execute("""
             WITH user_info AS (
@@ -166,8 +167,10 @@ def dashboard():
         
         # Detailed logging of retrieved tasks
         logging.info(f"Found {len(active_tasks)} active tasks for user {username}")
+        print(f"\nFound {len(active_tasks)} active tasks for user {username}")
+        
         for task in active_tasks:
-            logging.info(f"""
+            task_info = f"""
 Task Details:
 - Title: {task['title']}
 - ID: {task['id']}
@@ -176,7 +179,9 @@ Task Details:
 - Reward: {task['reward']}
 - Parameters: {task['task_params']}
 - Type Details: {task['type_details']}
-""")
+"""
+            logging.info(task_info)
+            print(task_info)
     except Exception as e:
         logging.error(f"Error getting active tasks: {str(e)}")
         active_tasks = []
@@ -197,13 +202,16 @@ Task Details:
     
     try:
         # Log template variables before rendering
-        logging.info(f"""
+        dashboard_info = f"""
 Rendering dashboard with:
 Username: {username}
 User Stats: {user_stats}
 Active Tasks Count: {len(active_tasks)}
 Upcoming Tasks Count: {len(upcoming_tasks)}
-""")
+"""
+        logging.info(dashboard_info)
+        print("\nDashboard Render Info:")
+        print(dashboard_info)
         
         rendered = render_template('dashboard.html',
                                  username=username,
