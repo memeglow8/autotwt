@@ -205,12 +205,18 @@
                             {% endif %}
                             
                             <div class="task-actions mt-3">
-                                {% if task.user_status == 'not_started' %}
-                                    <button class="btn btn-gradient" onclick="startTask({{ task.id }})">Start Task</button>
-                                {% elif task.user_status == 'in_progress' %}
-                                    <button class="btn btn-gradient" onclick="submitTask({{ task.id }})">Submit Proof</button>
+                                {% if task.user_status %}
+                                    {% if task.user_status == 'not_started' %}
+                                        <button class="btn btn-gradient" onclick="startTask({{ task.id }})">Start Task</button>
+                                    {% elif task.user_status == 'in_progress' %}
+                                        <button class="btn btn-gradient" onclick="submitTask({{ task.id }})">Submit Proof</button>
+                                    {% elif task.user_status == 'completed' %}
+                                        <button class="btn btn-success" disabled>Completed</button>
+                                    {% else %}
+                                        <button class="btn btn-secondary" disabled>{{ task.user_status|capitalize }}</button>
+                                    {% endif %}
                                 {% else %}
-                                    <button class="btn btn-secondary" disabled>{{ task.user_status|capitalize }}</button>
+                                    <button class="btn btn-gradient" onclick="startTask({{ task.id }})">Start Task</button>
                                 {% endif %}
                                 <button class="btn btn-outline-primary ml-2" onclick="viewTask({{ task.id }})">View Details</button>
                             </div>
