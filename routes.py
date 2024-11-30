@@ -125,6 +125,9 @@ def dashboard():
     try:
         # Get active tasks
         cursor.execute("""
+            WITH user_info AS (
+                SELECT id FROM users WHERE username = %s
+            )
             SELECT 
                 t.id, t.title, t.description, t.reward, t.status, t.type,
                 COALESCE(ut.status, 'not_started') as user_status,
@@ -152,12 +155,15 @@ def dashboard():
                 )
                 ELSE '{}'::jsonb
             END as type_details
-        FROM tasks t
-        LEFT JOIN users u ON u.username = %s 
-        LEFT JOIN user_tasks ut ON t.id = ut.task_id AND ut.user_id = u.id
-        WHERE t.status = 'active'
+            FROM tasks t
+            CROSS JOIN user_info ui
+            LEFT JOIN user_tasks ut ON t.id = ut.task_id AND ut.user_id = ui.id
+            WHERE t.status = 'active'
     """, (username,))
         active_tasks = cursor.fetchall()
+        logging.info(f"Found {len(active_tasks)} active tasks for user {username}")
+        for task in active_tasks:
+            logging.info(f"Task: {task['title']} (ID: {task['id']}) - Status: {task['user_status']}")
     except Exception as e:
         logging.error(f"Error getting active tasks: {str(e)}")
         active_tasks = []
