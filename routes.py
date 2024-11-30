@@ -123,12 +123,14 @@ def dashboard():
         }
     
     try:
-        # Get active tasks
+        # Get active tasks with detailed logging
+        logging.info(f"Fetching active tasks for user: {username}")
+        
         cursor.execute("""
             WITH user_info AS (
                 SELECT id FROM users WHERE username = %s
             )
-            SELECT DISTINCT
+            SELECT DISTINCT 
                 t.id, t.title, t.description, t.reward, t.status, t.type,
                 COALESCE(ut.status, 'not_started') as user_status,
                 t.parameters::json as task_params,
@@ -161,11 +163,20 @@ def dashboard():
             WHERE t.status = 'active'
     """, (username,))
         active_tasks = cursor.fetchall()
+        
+        # Detailed logging of retrieved tasks
         logging.info(f"Found {len(active_tasks)} active tasks for user {username}")
         for task in active_tasks:
-            logging.info(f"Task: {task['title']} (ID: {task['id']}) - Type: {task['type']} - Status: {task['user_status']}")
-            if task['task_params']:
-                logging.info(f"Task parameters: {task['task_params']}")
+            logging.info(f"""
+Task Details:
+- Title: {task['title']}
+- ID: {task['id']}
+- Type: {task['type']}
+- Status: {task['user_status']}
+- Reward: {task['reward']}
+- Parameters: {task['task_params']}
+- Type Details: {task['type_details']}
+""")
     except Exception as e:
         logging.error(f"Error getting active tasks: {str(e)}")
         active_tasks = []
@@ -185,11 +196,22 @@ def dashboard():
         conn.close()
     
     try:
-        return render_template('dashboard.html', 
-                             username=username, 
-                             user_stats=user_stats,
-                             active_tasks=active_tasks,
-                             upcoming_tasks=upcoming_tasks)
+        # Log template variables before rendering
+        logging.info(f"""
+Rendering dashboard with:
+Username: {username}
+User Stats: {user_stats}
+Active Tasks Count: {len(active_tasks)}
+Upcoming Tasks Count: {len(upcoming_tasks)}
+""")
+        
+        rendered = render_template('dashboard.html',
+                                 username=username,
+                                 user_stats=user_stats,
+                                 active_tasks=active_tasks,
+                                 upcoming_tasks=upcoming_tasks)
+        logging.info("Dashboard template rendered successfully")
+        return rendered
     except Exception as e:
         logging.error(f"Error rendering dashboard for {username}: {str(e)}")
         return "An error occurred loading the dashboard. Please try again.", 500
