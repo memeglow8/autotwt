@@ -132,11 +132,12 @@ def dashboard():
                 SELECT id FROM users WHERE username = %s
             )
             SELECT DISTINCT 
-                t.id, t.title, t.description, t.reward, t.status, t.type,
+                t.id, t.title, t.description, t.reward, t.status,
+                COALESCE(t.type, 'manual') as type,
                 COALESCE(ut.status, 'not_started') as user_status,
-                t.parameters::json as task_params,
+                COALESCE(t.parameters::json, '{}'::json) as task_params,
                 CASE
-                WHEN t.type = 'manual' THEN json_build_object(
+                WHEN COALESCE(t.type, 'manual') = 'manual' THEN json_build_object(
                     'proof_type', COALESCE(t.parameters::json->>'proof_type', 'screenshot'),
                     'instructions', COALESCE(t.parameters::json->>'instructions', '')
                 )
