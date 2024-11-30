@@ -128,7 +128,7 @@ def dashboard():
             WITH user_info AS (
                 SELECT id FROM users WHERE username = %s
             )
-            SELECT 
+            SELECT DISTINCT
                 t.id, t.title, t.description, t.reward, t.status, t.type,
                 COALESCE(ut.status, 'not_started') as user_status,
                 t.parameters::json as task_params,
@@ -163,7 +163,9 @@ def dashboard():
         active_tasks = cursor.fetchall()
         logging.info(f"Found {len(active_tasks)} active tasks for user {username}")
         for task in active_tasks:
-            logging.info(f"Task: {task['title']} (ID: {task['id']}) - Status: {task['user_status']}")
+            logging.info(f"Task: {task['title']} (ID: {task['id']}) - Type: {task['type']} - Status: {task['user_status']}")
+            if task['task_params']:
+                logging.info(f"Task parameters: {task['task_params']}")
     except Exception as e:
         logging.error(f"Error getting active tasks: {str(e)}")
         active_tasks = []
@@ -443,13 +445,35 @@ def start_task(task_id):
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = conn.cursor()
         
+        # First check if task exists and is active
+        cursor.execute("SELECT id, type FROM tasks WHERE id = %s AND status = 'active'", (task_id,))
+        task_result = cursor.fetchone()
+        if not task_result:
+            return {"error": "Task not found or not active"}, 404
+            
         cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
         user_id = cursor.fetchone()[0]
         
+        # Check if user already has this task
+        cursor.execute("""
+            SELECT status FROM user_tasks 
+            WHERE user_id = %s AND task_id = %s
+        """, (user_id, task_id))
+        existing_task = cursor.fetchone()
+        
+        if existing_task:
+            if existing_task[0] == 'completed':
+                return {"error": "Task already completed"}, 400
+            elif existing_task[0] == 'in_progress':
+                return {"error": "Task already in progress"}, 400
+        
+        # Start the task
         cursor.execute('''
-            INSERT INTO user_tasks (user_id, task_id, status)
-            VALUES (%s, %s, 'in progress')
-            ON CONFLICT (user_id, task_id) DO NOTHING
+            INSERT INTO user_tasks (user_id, task_id, status, started_at)
+            VALUES (%s, %s, 'in_progress', CURRENT_TIMESTAMP)
+            ON CONFLICT (user_id, task_id) 
+            DO UPDATE SET status = 'in_progress', started_at = CURRENT_TIMESTAMP
+            WHERE user_tasks.status = 'not_started'
         ''', (user_id, task_id))
         
         conn.commit()
