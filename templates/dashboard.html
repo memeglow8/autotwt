@@ -162,11 +162,11 @@
                         <div class="task-card">
                             <h4>{{ task.title }}</h4>
                             <p>{{ task.description }}</p>
-                            <p><strong>Type:</strong> {{ task.type|capitalize }}</p>
-                            <p><strong>Reward:</strong> {{ task.reward }} tokens</p>
-                            <p><strong>Status:</strong> {{ task.user_status|capitalize }}</p>
+                            <p><strong>Type:</strong> {{ task.type|default('Standard')|capitalize }}</p>
+                            <p><strong>Reward:</strong> {{ task.reward|default(0) }} tokens</p>
+                            <p><strong>Status:</strong> {{ task.user_status|default('Not Started')|capitalize }}</p>
                             
-                            {% if task.type == 'manual' %}
+                            {% if task.type|default('manual') == 'manual' %}
                                 <div class="task-details manual-task">
                                     <p><strong>Proof Required:</strong> {{ task.type_details.proof_type|capitalize }}</p>
                                     <p><small class="text-muted">{{ task.type_details.instructions }}</small></p>
